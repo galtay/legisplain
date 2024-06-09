@@ -52,11 +52,25 @@ def write_scripts(
 ):
     logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
 
-    # read usc-run config for output directories
+    # read main config
     #--------------------------------------------------
-    with open("scripts/bulk_download/config.yml", "r") as fp:
+    with open("config.yml", "r") as fp:
         config = yaml.safe_load(fp)
     logger.info(config)
+
+
+    # write usc-run config
+    #--------------------------------------------------
+    usc_config = {
+        "output": {
+            "data": config["bulk_path"] + "/data",
+            "cache": config["bulk_path"] + "/cache",
+        }
+    }
+    with open("scripts/bulk_download/config.yml", "w") as fp:
+        yaml.dump(usc_config, fp)
+    logger.info(usc_config)
+
 
     # write download commands
     #--------------------------------------------------
@@ -76,8 +90,13 @@ def write_scripts(
     # write sync commands
     #--------------------------------------------------
     sync_lines = []
-    sync_lines.append("aws s3 sync {} s3://hyperdemocracy/congress-bulk/data".format(config["output"]["data"]))
-    sync_lines.append("aws s3 sync {} s3://hyperdemocracy/congress-bulk/cache".format(config["output"]["cache"]))
+    for suffix in ["data", "cache"]:
+        sync_lines.append("aws s3 sync {} s3://{}/congress-bulk/{}".format(
+            config["bulk_path"] + "/" + suffix,
+            config["s3_bucket"],
+            suffix,
+        ))
+
     with open("scripts/bulk_download/sync.sh", "w") as fp:
         for line in sync_lines:
             fp.write(f"{line}\n")

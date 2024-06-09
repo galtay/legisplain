@@ -1,0 +1,4 @@
+---
+bulk_path: "/path/to/congress-bulk"
+s3_bucket: "hyperdemocracy"
+

@@ -14,13 +14,7 @@ git clone git@github.com:galtay/legisplain.git
 pip install -e legisplain
 ```
 
-## Update bulk govinfo download config
-
-Navigate to the bulk download scripts,
-
-```bash
-cd scripts/bulk_download
-```
+## Update main config
 
 Copy the template config file
 
@@ -28,20 +22,25 @@ Copy the template config file
 cp config_template.yml config.yml
 ```
 
-Update the paths in `config.yml` to match your local directory structure.
+Update the variables in `config.yml`
 For example,
 
 ```yaml
 ---
-output:
-  data: "/home/user/data/congress-bulk/data"
-  cache: "/home/user/data/congress-bulk/cache"
+bulk_path: "/home/user/data/congress-bulk"
+s3_bucket: "hyperdemocracy"
 ```
 
-## update the scripts
+## Write child scripts
 
 ```bash
 python main.py write-scripts
+```
+
+## Run scripts
+
+```bash
+cd scripts/bulk_download
 ```
 
 

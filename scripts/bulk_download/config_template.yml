@@ -1,4 +1,0 @@
----
-output:
-  data: "/path/to/congress-bulk/data"
-  cache: "/path/to/congress-bulk/cache"
