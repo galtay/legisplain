@@ -72,7 +72,7 @@ def write_scripts(
     logger.info(usc_config)
 
 
-    # write download commands
+    # write usc-run download commands
     #--------------------------------------------------
     download_lines = []
     for cn in utils.BILLSTATUS_CONGRESS_NUMS:
@@ -87,7 +87,7 @@ def write_scripts(
             fp.write(f"{line}\n")
 
 
-    # write sync commands
+    # write s3 sync commands
     #--------------------------------------------------
     sync_lines = []
     for suffix in ["data", "cache"]:
