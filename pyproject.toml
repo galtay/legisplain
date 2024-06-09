@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "legisplain"
+version = "0.1.0"
+description = ""
+authors = ["Gabriel Altay <gabriel.altay@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4"
+united-states-congress = {git = "https://github.com/unitedstates/congress.git"}
+typer = "^0.12.3"
+rich = "^13.7.1"
+beautifulsoup4 = "^4.12.3"
+psycopg2-binary = "^2.9.9"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
