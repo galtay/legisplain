@@ -1,5 +1,6 @@
 from enum import Enum
 import logging
+from pathlib import Path
 import subprocess
 from typing import Annotated
 import yaml
@@ -54,9 +55,16 @@ def write_scripts(
 
     # read main config
     #--------------------------------------------------
-    with open("config.yml", "r") as fp:
+    with Path("config.yml").open("r") as fp:
         config = yaml.safe_load(fp)
     logger.info(config)
+
+
+    # set base path and create log dir
+    #--------------------------------------------------
+    base_path = Path("scripts") / "bulk_download"
+    logs_path = base_path / "logs"
+    logs_path.mkdir(exist_ok=True)
 
 
     # write usc-run config
@@ -67,7 +75,7 @@ def write_scripts(
             "cache": config["bulk_path"] + "/cache",
         }
     }
-    with open("scripts/bulk_download/config.yml", "w") as fp:
+    with (base_path / "config.yml").open("w") as fp:
         yaml.dump(usc_config, fp)
     logger.info(usc_config)
 
@@ -82,7 +90,7 @@ def write_scripts(
         download_lines.append(f"usc-run govinfo --bulkdata=BILLS --congress={cn}")
         download_lines.append(f"usc-run govinfo --bulkdata=PLAW --congress={cn}")
 
-    with open("scripts/bulk_download/download.sh", "w") as fp:
+    with (base_path / "download.sh").open("w") as fp:
         for line in download_lines:
             fp.write(f"{line}\n")
 
@@ -97,7 +105,7 @@ def write_scripts(
             suffix,
         ))
 
-    with open("scripts/bulk_download/sync.sh", "w") as fp:
+    with (base_path / "sync.sh").open("w") as fp:
         for line in sync_lines:
             fp.write(f"{line}\n")
 
