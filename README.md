@@ -41,12 +41,5 @@ python main.py write-scripts
 
 ```bash
 cd scripts/bulk_download
-```
-
-
-## run the scripts
-
-```bash
-cd scripts/bulk_download
 ./download-and-sync-with-log.sh
 ```
