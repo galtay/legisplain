@@ -32,7 +32,7 @@ CREATE TABLE billstatus (
   ,congress_num integer NOT NULL
   ,legis_type varchar NOT NULL
   ,legis_num integer NOT NULL
-  ,scrape_path varchar NOT NULL
+  ,bulk_path varchar NOT NULL
   ,lastmod timestamp without time zone NOT NULL
   ,bs_xml XML NOT NULL
   ,bs_json JSON NOT NULL
@@ -51,7 +51,7 @@ CREATE TABLE textversion_xml (
   ,legis_num integer NOT NULL
   ,legis_version varchar NOT NULL
   ,legis_class varchar NOT NULL
-  ,scrape_path varchar NOT NULL
+  ,bulk_path varchar NOT NULL
   ,file_name varchar NOT NULL
   ,lastmod timestamp without time zone NOT NULL
   ,xml_type varchar NOT NULL
@@ -121,7 +121,7 @@ def upsert_billstatus_xml(
                 "congress_num": int(match.groupdict()["congress_num"]),
                 "legis_type": match.groupdict()["legis_type"],
                 "legis_num": int(match.groupdict()["legis_num"]),
-                "scrape_path": path_str,
+                "bulk_path": path_str,
                 "lastmod": lastmod_str,
                 "bs_xml": xml_pretty,
                 "bs_json": bs.model_dump_json(),
@@ -244,7 +244,7 @@ def upsert_textversion_xml(
             "legis_num": int(match.groupdict()["legis_num"]),
             "legis_version": legis_version,
             "legis_class": legis_class,
-            "scrape_path": path_str,
+            "bulk_path": path_str,
             "file_name": Path(path_str).name,
             "lastmod": lastmod_str,
             "xml_type": xml_type,
@@ -351,7 +351,7 @@ def create_unified_xml(conn_str: str):
             'legis_num', legis_num,
             'legis_version', legis_version,
             'legis_class', legis_class,
-            'scrape_path', scrape_path,
+            'bulk_path', bulk_path,
             'file_name', file_name,
             'lastmod', lastmod,
             'xml_type', xml_type,
