@@ -44,3 +44,11 @@ python main.py write-scripts
 cd scripts/bulk_download
 ./download-and-sync-with-log.sh
 ```
+
+## Populate postgres
+
+```bash
+python main.py pg-populate-billstatus
+python main.py pg-populate-textversion-xml
+python main.py pg-populate-unified-xml
+```
