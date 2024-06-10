@@ -1,1 +1,1 @@
-./download.sh &> "logs/download-$(date +%s).log"
+bash ./download.sh &> "logs/download-$(date +%s).log"

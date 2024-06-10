@@ -101,7 +101,7 @@ def write_scripts(
     #--------------------------------------------------
     sync_lines = []
     for suffix in ["data", "cache"]:
-        sync_lines.append("aws s3 sync {} s3://{}/congress-bulk/{}".format(
+        sync_lines.append("aws s3 sync {} s3://{}/congress-bulk/{} --quiet".format(
             config["bulk_path"] + "/" + suffix,
             config["s3_bucket"],
             suffix,
