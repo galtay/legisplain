@@ -52,3 +52,12 @@ python main.py pg-populate-billstatus
 python main.py pg-populate-textversion-xml
 python main.py pg-populate-unified-xml
 ```
+
+
+## Upload to Hugging Face
+
+```bash
+python main.py hf-upload-billstatus
+python main.py hf-upload-textversion-xml
+python main.py hf-upload-unified-xml
+```
