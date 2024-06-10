@@ -29,6 +29,7 @@ For example,
 ---
 bulk_path: "/home/user/data/congress-bulk"
 s3_bucket: "hyperdemocracy"
+pg_conn_str: "postgresql+psycopg2://[user[:password]@][netloc][:port][/dbname][?param1=value1&...]
 ```
 
 ## Write child scripts
