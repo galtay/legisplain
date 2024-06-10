@@ -26,11 +26,11 @@ class LogLevel(str, Enum):
     warning = "WARNING"
     error = "ERROR"
 
+
 LOG_LEVEL_ANNOTATED = Annotated[
     LogLevel,
     typer.Option(help="Log level"),
 ]
-
 
 
 def execute_shell_cmnd(cmnd_parts):
@@ -48,7 +48,6 @@ def execute_shell_cmnd(cmnd_parts):
     return stdout, stderr
 
 
-
 @app.command()
 def write_scripts(
     log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
@@ -57,21 +56,19 @@ def write_scripts(
     logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
 
     # read main config
-    #--------------------------------------------------
+    # --------------------------------------------------
     with Path("config.yml").open("r") as fp:
         config = yaml.safe_load(fp)
     logger.info(config)
 
-
     # set base path and create log dir
-    #--------------------------------------------------
+    # --------------------------------------------------
     base_path = Path("scripts") / "bulk_download"
     logs_path = base_path / "logs"
     logs_path.mkdir(exist_ok=True)
 
-
     # write usc-run config
-    #--------------------------------------------------
+    # --------------------------------------------------
     usc_config = {
         "output": {
             "data": config["bulk_path"] + "/data",
@@ -82,9 +79,8 @@ def write_scripts(
         yaml.dump(usc_config, fp)
     logger.info(usc_config)
 
-
     # write usc-run download commands
-    #--------------------------------------------------
+    # --------------------------------------------------
     download_lines = []
     for cn in utils.BILLSTATUS_CONGRESS_NUMS:
         download_lines.append(f"usc-run govinfo --bulkdata=BILLSTATUS --congress={cn}")
@@ -97,21 +93,21 @@ def write_scripts(
         for line in download_lines:
             fp.write(f"{line}\n")
 
-
     # write s3 sync commands
-    #--------------------------------------------------
+    # --------------------------------------------------
     sync_lines = []
     for suffix in ["data", "cache"]:
-        sync_lines.append("aws s3 sync {} s3://{}/congress-bulk/{} --quiet".format(
-            config["bulk_path"] + "/" + suffix,
-            config["s3_bucket"],
-            suffix,
-        ))
+        sync_lines.append(
+            "aws s3 sync {} s3://{}/congress-bulk/{} --quiet".format(
+                config["bulk_path"] + "/" + suffix,
+                config["s3_bucket"],
+                suffix,
+            )
+        )
 
     with (base_path / "sync.sh").open("w") as fp:
         for line in sync_lines:
             fp.write(f"{line}\n")
-
 
 
 @app.command()
@@ -130,8 +126,8 @@ def pg_reset_tables(
 @app.command()
 def pg_populate_billstatus(
     log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
-    batch_size: int=100,
-    echo: bool=False,
+    batch_size: int = 100,
+    echo: bool = False,
 ):
     logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
     with Path("config.yml").open("r") as fp:
@@ -146,11 +142,12 @@ def pg_populate_billstatus(
         echo=echo,
     )
 
+
 @app.command()
 def pg_populate_textversion_xml(
     log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
-    batch_size: int=100,
-    echo: bool=False,
+    batch_size: int = 100,
+    echo: bool = False,
 ):
     logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
     with Path("config.yml").open("r") as fp:
@@ -165,11 +162,12 @@ def pg_populate_textversion_xml(
         echo=echo,
     )
 
+
 @app.command()
 def pg_populate_unified_xml(
     log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
-    batch_size: int=100,
-    echo: bool=False,
+    batch_size: int = 100,
+    echo: bool = False,
 ):
     logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
     with Path("config.yml").open("r") as fp:
@@ -183,7 +181,7 @@ def pg_populate_unified_xml(
 @app.command()
 def hf_upload_billstatus(
     log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
-    echo: bool=False,
+    echo: bool = False,
 ):
     logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
     with Path("config.yml").open("r") as fp:
@@ -196,10 +194,11 @@ def hf_upload_billstatus(
         conn_str,
     )
 
+
 @app.command()
 def hf_upload_textversion_xml(
     log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
-    echo: bool=False,
+    echo: bool = False,
 ):
     logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
     with Path("config.yml").open("r") as fp:
@@ -208,6 +207,23 @@ def hf_upload_textversion_xml(
     conn_str = config["pg_conn_str"]
     congress_hf_path = config["hf_path"]
     upload_hf.upload_textversion_xml(
+        congress_hf_path,
+        conn_str,
+    )
+
+
+@app.command()
+def hf_upload_unified_xml(
+    log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
+    echo: bool = False,
+):
+    logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
+    with Path("config.yml").open("r") as fp:
+        config = yaml.safe_load(fp)
+    logger.info(config)
+    conn_str = config["pg_conn_str"]
+    congress_hf_path = config["hf_path"]
+    upload_hf.upload_unified_xml(
         congress_hf_path,
         conn_str,
     )
