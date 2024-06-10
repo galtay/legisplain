@@ -137,7 +137,7 @@ class Action(BaseModel):
 
     @classmethod
     def from_xel(cls, xel: Optional[Element]) -> Optional[Action]:
-        if xel is None or len(xel.findall("*"))==0:
+        if xel is None or len(xel.findall("*")) == 0:
             return None
         action = cls(
             action_date=get_text_or_none(xel.find("actionDate")),
@@ -831,5 +831,3 @@ def count_tags(xmls: list[str]) -> Counter:
         for xel in bill:
             tags[xel.tag] += 1
     return tags
-
-

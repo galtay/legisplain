@@ -65,7 +65,6 @@ DROP TABLE IF EXISTS unified_xml
 """
 
 
-
 def reset_tables(conn_str: str, echo=False):
     engine = create_engine(conn_str, echo=echo)
     with engine.connect() as conn:
@@ -78,7 +77,10 @@ def reset_tables(conn_str: str, echo=False):
 
 
 def upsert_billstatus_xml(
-    congress_bulk_path: Union[str, Path], conn_str: str, batch_size: int = 1000, echo: bool=False
+    congress_bulk_path: Union[str, Path],
+    conn_str: str,
+    batch_size: int = 50,
+    echo: bool = False,
 ):
     """Upsert billstatus xml files into postgres
 
@@ -104,23 +106,27 @@ def upsert_billstatus_xml(
         lastmod_str = lastmod_path.read_text()
         xml = path_object.read_text().strip()
         soup = BeautifulSoup(xml, "xml")
-        xml_pretty = soup.prettify() # note this also fixes invalid xml that bs leniently parsed
+        xml_pretty = (
+            soup.prettify()
+        )  # note this also fixes invalid xml that bs leniently parsed
         bs = BillStatus.from_xml_str(xml)
 
-        row = OrderedDict({
-            "legis_id": "{}-{}-{}".format(
-                match.groupdict()["congress_num"],
-                match.groupdict()["legis_type"],
-                match.groupdict()["legis_num"],
-            ),
-            "congress_num": int(match.groupdict()["congress_num"]),
-            "legis_type": match.groupdict()["legis_type"],
-            "legis_num": int(match.groupdict()["legis_num"]),
-            "scrape_path": path_str,
-            "lastmod": lastmod_str,
-            "bs_xml": xml_pretty,
-            "bs_json": bs.model_dump_json(),
-        })
+        row = OrderedDict(
+            {
+                "legis_id": "{}-{}-{}".format(
+                    match.groupdict()["congress_num"],
+                    match.groupdict()["legis_type"],
+                    match.groupdict()["legis_num"],
+                ),
+                "congress_num": int(match.groupdict()["congress_num"]),
+                "legis_type": match.groupdict()["legis_type"],
+                "legis_num": int(match.groupdict()["legis_num"]),
+                "scrape_path": path_str,
+                "lastmod": lastmod_str,
+                "bs_xml": xml_pretty,
+                "bs_json": bs.model_dump_json(),
+            }
+        )
         rows.append(row)
 
         if len(rows) >= batch_size:
@@ -140,7 +146,6 @@ def upsert_billstatus_xml(
             rows = []
             ibatch += 1
 
-
     if len(rows) > 0:
         rich.print(f"upserting billstatus batch {ibatch} with {len(rows)} rows.")
         pt1 = "({})".format(", ".join(row.keys()))
@@ -154,7 +159,10 @@ def upsert_billstatus_xml(
 
 
 def upsert_textversion_xml(
-        congress_bulk_path: Union[str, Path], conn_str: str, batch_size: int = 1000, echo: bool=False
+    congress_bulk_path: Union[str, Path],
+    conn_str: str,
+    batch_size: int = 50,
+    echo: bool = False,
 ):
     """Upsert textversion xml files into postgres
 
@@ -173,9 +181,6 @@ def upsert_textversion_xml(
 
     for path_object in data_path.rglob("*.xml"):
         path_str = str(path_object.relative_to(congress_bulk_path))
-
-#        if path_str != "data/govinfo/BILLS/113/1/sconres/BILLS-113sconres13is.xml":
-#            continue
 
         if "/uslm/" in path_str:
             xml_type = "uslm"
@@ -201,7 +206,9 @@ def upsert_textversion_xml(
 
         xml = path_object.read_text().strip()
         soup = BeautifulSoup(xml, "xml")
-        xml_pretty = soup.prettify() # note this also fixes invalid xml that bs leniently parsed
+        xml_pretty = (
+            soup.prettify()
+        )  # note this also fixes invalid xml that bs leniently parsed
 
         root_tags = [el.name for el in soup.contents if el.name]
         if len(root_tags) != 1:
@@ -210,8 +217,13 @@ def upsert_textversion_xml(
             root_tag = root_tags[0]
             root_tag = root_tag.replace("{http://schemas.gpo.gov/xml/uslm}", "")
 
-
-        if root_tag not in ("bill", "resolution", "amendment-doc", "pLaw", "parse_failed"):
+        if root_tag not in (
+            "bill",
+            "resolution",
+            "amendment-doc",
+            "pLaw",
+            "parse_failed",
+        ):
             print(f"root tag not recognized: {root_tag}")
 
         row = {
@@ -242,7 +254,9 @@ def upsert_textversion_xml(
         rows.append(row)
 
         if len(rows) >= batch_size:
-            rich.print(f"upserting textversion_xml batch {ibatch} with {len(rows)} rows.")
+            rich.print(
+                f"upserting textversion_xml batch {ibatch} with {len(rows)} rows."
+            )
             pt1 = "({})".format(", ".join(row.keys()))
             pt2 = "({})".format(", ".join([f":{key}" for key in row.keys()]))
             pt3 = ", ".join(f"{key} = EXCLUDED.{key}" for key in row.keys())
@@ -257,7 +271,6 @@ def upsert_textversion_xml(
 
             rows = []
             ibatch += 1
-
 
     if len(rows) > 0:
         rich.print(f"upserting textversion_xml batch {ibatch} with {len(rows)} rows.")
@@ -361,23 +374,3 @@ def create_unified_xml(conn_str: str):
     with engine.connect() as conn:
         with conn.begin():
             result = conn.execute(text(sql))
-
-
-if __name__ == "__main__":
-
-    with Path("config.yml").open("r") as fp:
-        config = yaml.safe_load(fp)
-    logger.info(config)
-
-    conn_str = config["pg_conn_str"]
-    congress_bulk_path = config["bulk_path"]
-
-    reset_tables(conn_str, echo=True)
-
-    sys.exit(0)
-
-    #upsert_billstatus_xml(congress_bulk_path, conn_str, batch_size=5_000, echo=False)
-    #missed = upsert_textversion_xml(congress_bulk_path, conn_str, batch_size=1_000, echo=False)
-    create_unified_xml(conn_str)
-    
-    #df = pd.read_sql("select * from billstatus_xml limit 1", con=engine)

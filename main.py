@@ -117,7 +117,6 @@ def write_scripts(
 def pg_reset_tables(
     log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
 ):
-
     logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
     with Path("config.yml").open("r") as fp:
         config = yaml.safe_load(fp)
@@ -133,7 +132,6 @@ def pg_populate_billstatus(
     batch_size: int=100,
     echo: bool=False,
 ):
-
     logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
     with Path("config.yml").open("r") as fp:
         config = yaml.safe_load(fp)
@@ -146,6 +144,39 @@ def pg_populate_billstatus(
         batch_size=batch_size,
         echo=echo,
     )
+
+@app.command()
+def pg_populate_textversion_xml(
+    log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
+    batch_size: int=100,
+    echo: bool=False,
+):
+    logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
+    with Path("config.yml").open("r") as fp:
+        config = yaml.safe_load(fp)
+    logger.info(config)
+    conn_str = config["pg_conn_str"]
+    congress_bulk_path = config["bulk_path"]
+    populate_pg.upsert_textversion_xml(
+        congress_bulk_path,
+        conn_str,
+        batch_size=batch_size,
+        echo=echo,
+    )
+
+@app.command()
+def pg_populate_unified_xml(
+    log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
+    batch_size: int=100,
+    echo: bool=False,
+):
+    logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
+    with Path("config.yml").open("r") as fp:
+        config = yaml.safe_load(fp)
+    logger.info(config)
+    conn_str = config["pg_conn_str"]
+    congress_bulk_path = config["bulk_path"]
+    populate_pg.create_unified_xml(conn_str)
 
 
 if __name__ == "__main__":

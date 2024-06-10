@@ -11,7 +11,8 @@ BILLSTATUS_PATH_PATTERN = re.compile(
     ([a-zA-Z]+)
     (?P<legis_num>\d+)/
     fdsys_billstatus\.xml
-    """, re.VERBOSE
+    """,
+    re.VERBOSE,
 )
 
 TEXTVERSION_BILLS_PATTERN = re.compile(
@@ -21,7 +22,8 @@ TEXTVERSION_BILLS_PATTERN = re.compile(
     (?P<legis_num>\d+)
     (?P<legis_version>\w+)
     \.xml
-    """, re.VERBOSE
+    """,
+    re.VERBOSE,
 )
 
 TEXTVERSION_PLAW_PATTERN = re.compile(
@@ -30,5 +32,6 @@ TEXTVERSION_PLAW_PATTERN = re.compile(
     (?P<legis_type>[a-zA-Z]+)
     (?P<legis_num>\d+)
     \.xml
-    """, re.VERBOSE
+    """,
+    re.VERBOSE,
 )
