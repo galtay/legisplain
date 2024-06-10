@@ -58,6 +58,8 @@ pointers to different xml files that contain various text versions of each bill.
 
 # Column Descriptions
 
+Hyperdemocracy column descriptions.
+
   | Column | Description |
   |--------|-------------|
   | legis_id | a unique ID for each bill (`{congress_num}-{legis_type}-{legis_num}`) |
@@ -68,6 +70,8 @@ pointers to different xml files that contain various text versions of each bill.
   | lastmod | lastmod date during bulk download |
   | bs_xml | contents of billstatus XML file |
   | bs_json| billstatus XML parsed into JSON |
+
+See the [BILLSTATUS XML User Guide](https://github.com/usgpo/bill-status/blob/main/BILLSTATUS-XML_User_User-Guide.md) for descriptions of the other columns.
 
 
 # Examples

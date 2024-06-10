@@ -17,6 +17,7 @@ pandas = "^2.2.2"
 sqlalchemy = "^2.0.30"
 huggingface-hub = "^0.23.3"
 pyarrow = "^16.1.0"
+datasets = "^2.19.2"
 
 
 [build-system]

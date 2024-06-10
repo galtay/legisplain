@@ -11,6 +11,7 @@ import typer
 
 from legisplain import utils
 from legisplain import populate_pg
+from legisplain import upload_hf
 
 
 logger = logging.getLogger(__name__)
@@ -177,6 +178,23 @@ def pg_populate_unified_xml(
     conn_str = config["pg_conn_str"]
     congress_bulk_path = config["bulk_path"]
     populate_pg.create_unified_xml(conn_str)
+
+
+@app.command()
+def hf_upload_billstatus(
+    log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
+    echo: bool=False,
+):
+    logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
+    with Path("config.yml").open("r") as fp:
+        config = yaml.safe_load(fp)
+    logger.info(config)
+    conn_str = config["pg_conn_str"]
+    congress_hf_path = config["hf_path"]
+    upload_hf.upload_billstatus(
+        congress_hf_path,
+        conn_str,
+    )
 
 
 if __name__ == "__main__":
