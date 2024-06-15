@@ -28,7 +28,7 @@ For example,
 ```yaml
 ---
 bulk_path: "/home/user/data/congress-bulk"
-bulk_path: "/home/user/data/congress-hf"
+hf_path: "/home/user/data/congress-hf"
 s3_bucket: "hyperdemocracy"
 pg_conn_str: "postgresql+psycopg2://[user[:password]@][netloc][:port][/dbname][?param1=value1&...]
 ```
