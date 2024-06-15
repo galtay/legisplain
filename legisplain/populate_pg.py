@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 import re
 from typing import Union
+from typing import Optional
 import yaml
 
 from bs4 import BeautifulSoup
@@ -81,6 +82,7 @@ def upsert_billstatus_xml(
     conn_str: str,
     batch_size: int = 50,
     echo: bool = False,
+    paths: Optional[list[Path]] = None,
 ):
     """Upsert billstatus xml files into postgres
 
@@ -96,7 +98,14 @@ def upsert_billstatus_xml(
     rows = []
     ibatch = 0
 
-    for path_object in data_path.rglob("fdsys_billstatus.xml"):
+    if paths is None:
+        logger.info("walking entire bulk data path")
+        path_iter = data_path.rglob("fdsys_billstatus.xml")
+    else:
+        logger.info(f"walking {len(paths)} input paths")
+        path_iter = paths
+
+    for path_object in path_iter:
         path_str = str(path_object.relative_to(congress_bulk_path))
         if (match := re.match(utils.BILLSTATUS_PATH_PATTERN, path_str)) is None:
             rich.print("billstatus oops: {}".format(path_object))
