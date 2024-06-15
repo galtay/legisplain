@@ -159,8 +159,11 @@ def upsert_billstatus_xml(
         rich.print(f"upserting billstatus batch {ibatch} with {len(rows)} rows.")
         pt1 = "({})".format(", ".join(row.keys()))
         pt2 = "({})".format(", ".join([f":{key}" for key in row.keys()]))
+        pt3 = ", ".join(f"{key} = EXCLUDED.{key}" for key in row.keys())
         sql = f"""
         INSERT INTO billstatus {pt1} VALUES {pt2}
+        ON CONFLICT (legis_id) DO UPDATE SET
+        {pt3}
         """
         with engine.connect() as conn:
             conn.execute(text(sql), rows)
