@@ -43,8 +43,8 @@ legisplain [legisplain](https://github.com/galtay/legisplain) repo.
 # Hyperdemocracy Datasets
 
 * [usc-billstatus](https://huggingface.co/datasets/hyperdemocracy/usc-billstatus) (metadata on each bill)
-* [usc-textversion-xml](https://huggingface.co/datasets/hyperdemocracy/usc-textversion-xml) (different text versions of bills in xml)
-* [usc-unified-xml](https://huggingface.co/datasets/hyperdemocracy/usc-unified-xml) (combined metadata and text version xml)
+* [usc-textversion](https://huggingface.co/datasets/hyperdemocracy/usc-textversion) (different text versions of bills in xml)
+* [usc-unified](https://huggingface.co/datasets/hyperdemocracy/usc-unified) (combined metadata and text version xml)
 
 # BILLSTATUS (metadata for congresses 108-118)
 

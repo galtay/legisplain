@@ -144,7 +144,7 @@ def pg_populate_billstatus(
     else:
         bs_paths = None
 
-    populate_pg.upsert_billstatus_xml(
+    populate_pg.upsert_billstatus(
         congress_bulk_path,
         conn_str,
         batch_size=batch_size,
@@ -154,7 +154,7 @@ def pg_populate_billstatus(
 
 
 @app.command()
-def pg_populate_textversion_xml(
+def pg_populate_textversion(
     log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
     batch_size: int = 100,
     echo: bool = False,
@@ -173,7 +173,7 @@ def pg_populate_textversion_xml(
     else:
         tv_paths = None
 
-    populate_pg.upsert_textversion_xml(
+    populate_pg.upsert_textversion(
         congress_bulk_path,
         conn_str,
         batch_size=batch_size,
@@ -183,7 +183,7 @@ def pg_populate_textversion_xml(
 
 
 @app.command()
-def pg_populate_unified_xml(
+def pg_populate_unified(
     log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
     batch_size: int = 100,
     echo: bool = False,
@@ -194,7 +194,7 @@ def pg_populate_unified_xml(
     logger.info(config)
     conn_str = config["pg_conn_str"]
     congress_bulk_path = config["bulk_path"]
-    populate_pg.create_unified_xml(conn_str)
+    populate_pg.create_unified(conn_str)
 
 
 @app.command()
@@ -215,7 +215,7 @@ def hf_upload_billstatus(
 
 
 @app.command()
-def hf_upload_textversion_xml(
+def hf_upload_textversion(
     log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
     echo: bool = False,
 ):
@@ -225,14 +225,14 @@ def hf_upload_textversion_xml(
     logger.info(config)
     conn_str = config["pg_conn_str"]
     congress_hf_path = config["hf_path"]
-    upload_hf.upload_textversion_xml(
+    upload_hf.upload_textversion(
         congress_hf_path,
         conn_str,
     )
 
 
 @app.command()
-def hf_upload_unified_xml(
+def hf_upload_unified(
     log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
     echo: bool = False,
 ):
@@ -242,7 +242,7 @@ def hf_upload_unified_xml(
     logger.info(config)
     conn_str = config["pg_conn_str"]
     congress_hf_path = config["hf_path"]
-    upload_hf.upload_unified_xml(
+    upload_hf.upload_unified(
         congress_hf_path,
         conn_str,
     )

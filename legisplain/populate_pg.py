@@ -18,7 +18,8 @@ from sqlalchemy import create_engine
 from sqlalchemy import text
 
 from legisplain import utils
-from legisplain.bill_status_mod import BillStatus
+from legisplain.billstatus_mod import BillStatus
+from legisplain.textversion_mod import get_legis_text_v1
 
 
 logger = logging.getLogger(__name__)
@@ -40,11 +41,11 @@ CREATE TABLE billstatus (
 )
 """
 
-sql_drop_textversion_xml = """
-DROP TABLE IF EXISTS textversion_xml
+sql_drop_textversion = """
+DROP TABLE IF EXISTS textversion
 """
-sql_create_textversion_xml = """
-CREATE TABLE textversion_xml (
+sql_create_textversion = """
+CREATE TABLE textversion (
   tv_id varchar PRIMARY KEY
   ,legis_id varchar NOT NULL
   ,congress_num integer NOT NULL
@@ -58,11 +59,12 @@ CREATE TABLE textversion_xml (
   ,xml_type varchar NOT NULL
   ,root_tag varchar NOT NULL
   ,tv_xml XML NOT NULL
+  ,tv_txt varchar NOT NULL
 )
 """
 
-sql_drop_unified_xml = """
-DROP TABLE IF EXISTS unified_xml
+sql_drop_unified = """
+DROP TABLE IF EXISTS unified
 """
 
 
@@ -71,13 +73,13 @@ def reset_tables(conn_str: str, echo=False):
     with engine.connect() as conn:
         conn.execute(text(sql_drop_billstatus))
         conn.execute(text(sql_create_billstatus))
-        conn.execute(text(sql_drop_textversion_xml))
-        conn.execute(text(sql_create_textversion_xml))
-        conn.execute(text(sql_drop_unified_xml))
+        conn.execute(text(sql_drop_textversion))
+        conn.execute(text(sql_create_textversion))
+        conn.execute(text(sql_drop_unified))
         conn.commit()
 
 
-def upsert_billstatus_xml(
+def upsert_billstatus(
     congress_bulk_path: Union[str, Path],
     conn_str: str,
     batch_size: int = 50,
@@ -171,7 +173,7 @@ def upsert_billstatus_xml(
             conn.commit()
 
 
-def upsert_textversion_xml(
+def upsert_textversion(
     congress_bulk_path: Union[str, Path],
     conn_str: str,
     batch_size: int = 50,
@@ -232,6 +234,7 @@ def upsert_textversion_xml(
         xml_pretty = (
             soup.prettify()
         )  # note this also fixes invalid xml that bs leniently parsed
+        tv_txt = get_legis_text_v1(xml)
 
         root_tags = [el.name for el in soup.contents if el.name]
         if len(root_tags) != 1:
@@ -245,7 +248,6 @@ def upsert_textversion_xml(
             "resolution",
             "amendment-doc",
             "pLaw",
-            "parse_failed",
         ):
             print(f"root tag not recognized: {root_tag}")
 
@@ -273,18 +275,19 @@ def upsert_textversion_xml(
             "xml_type": xml_type,
             "root_tag": root_tag,
             "tv_xml": xml_pretty,
+            "tv_txt": tv_txt,
         }
         rows.append(row)
 
         if len(rows) >= batch_size:
             rich.print(
-                f"upserting textversion_xml batch {ibatch} with {len(rows)} rows."
+                f"upserting textversion batch {ibatch} with {len(rows)} rows."
             )
             pt1 = "({})".format(", ".join(row.keys()))
             pt2 = "({})".format(", ".join([f":{key}" for key in row.keys()]))
             pt3 = ", ".join(f"{key} = EXCLUDED.{key}" for key in row.keys())
             sql = f"""
-            INSERT INTO textversion_xml {pt1} VALUES {pt2}
+            INSERT INTO textversion {pt1} VALUES {pt2}
             ON CONFLICT (tv_id) DO UPDATE SET
             {pt3}
             """
@@ -296,12 +299,12 @@ def upsert_textversion_xml(
             ibatch += 1
 
     if len(rows) > 0:
-        rich.print(f"upserting textversion_xml batch {ibatch} with {len(rows)} rows.")
+        rich.print(f"upserting textversion batch {ibatch} with {len(rows)} rows.")
         pt1 = "({})".format(", ".join(row.keys()))
         pt2 = "({})".format(", ".join([f":{key}" for key in row.keys()]))
         pt3 = ", ".join(f"{key} = EXCLUDED.{key}" for key in row.keys())
         sql = f"""
-        INSERT INTO textversion_xml {pt1} VALUES {pt2}
+        INSERT INTO textversion {pt1} VALUES {pt2}
         ON CONFLICT (tv_id) DO UPDATE SET
         {pt3}
         """
@@ -312,8 +315,8 @@ def upsert_textversion_xml(
     return missed
 
 
-def create_unified_xml(conn_str: str):
-    """Join billstatus and textversion_xml data.
+def create_unified(conn_str: str):
+    """Join billstatus and textversion data.
     Note that this uses the dtd xml text version not the uslm xml versions.
 
     BS = billstatus
@@ -327,8 +330,8 @@ def create_unified_xml(conn_str: str):
     """
 
     sql = """
-    drop table if exists unified_xml;
-    create table unified_xml as (
+    drop table if exists unified;
+    create table unified as (
 
     with
 
@@ -353,11 +356,11 @@ def create_unified_xml(conn_str: str):
     -- join BS and TV textversions. keep only dtd xml text versions
     jnd_tvs as (
       select
-        textversion_xml.*,
+        textversion.*,
         bs_tv
       from bs_tvs_v2
-      join textversion_xml
-      on bs_tvs_v2.file_name = textversion_xml.file_name
+      join textversion
+      on bs_tvs_v2.file_name = textversion.file_name
       where xml_type = 'dtd'
     ),
 
@@ -380,6 +383,7 @@ def create_unified_xml(conn_str: str):
             'xml_type', xml_type,
             'root_tag', root_tag,
             'tv_xml', tv_xml,
+            'tv_txt', tv_txt,
             'bs_tv', bs_tv
           ) order by lastmod desc
         ) as tvs

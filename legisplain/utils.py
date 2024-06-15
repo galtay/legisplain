@@ -75,7 +75,6 @@ def get_paths_from_download_logs(congress_bulk_path: Path, log_path: Path):
     return paths
 
 
-
 TEXTVERSION_BILLS_PATTERN = re.compile(
     r"""BILLS-
     (?P<congress_num>\d{3})

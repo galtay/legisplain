@@ -65,11 +65,11 @@ def upload_billstatus(congress_hf_path: Union[str, Path], conn_str: str):
     )
 
 
-def upload_textversion_xml(congress_hf_path: Union[str, Path], conn_str: str):
+def upload_textversion(congress_hf_path: Union[str, Path], conn_str: str):
 
     rich.print(f"{congress_hf_path=}")
 
-    ds_tag = "textversion-xml"
+    ds_tag = "textversion"
     ds_name = f"usc-{ds_tag}"
 
     upload_folder = Path(congress_hf_path) / ds_name
@@ -87,7 +87,7 @@ def upload_textversion_xml(congress_hf_path: Union[str, Path], conn_str: str):
 
     engine = create_engine(conn_str, echo=False)
     df = pd.read_sql(
-        f"""select * from textversion_xml
+        f"""select * from textversion
         where xml_type = 'dtd'
         order by congress_num, legis_type, legis_num, legis_version
         """,
@@ -117,11 +117,11 @@ def upload_textversion_xml(congress_hf_path: Union[str, Path], conn_str: str):
     )
 
 
-def upload_unified_xml(congress_hf_path: Union[str, Path], conn_str: str):
+def upload_unified(congress_hf_path: Union[str, Path], conn_str: str):
 
     rich.print(f"{congress_hf_path=}")
 
-    ds_tag = "unified-xml"
+    ds_tag = "unified"
     ds_name = f"usc-{ds_tag}"
 
     upload_folder = Path(congress_hf_path) / ds_name
@@ -139,7 +139,7 @@ def upload_unified_xml(congress_hf_path: Union[str, Path], conn_str: str):
 
     engine = create_engine(conn_str, echo=False)
     df = pd.read_sql(
-        f"select * from unified_xml order by congress_num, legis_type, legis_num",
+        f"select * from unified order by congress_num, legis_type, legis_num",
         con=engine,
     )
     df["lastmod"] = df["lastmod"].astype(str)
