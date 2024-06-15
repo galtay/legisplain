@@ -90,6 +90,7 @@ def upsert_billstatus_xml(
         congress_bulk_path: should have "cache" and "data" as subdirectories
         conn_str: postgres connection string
         batch_size: number of billstatus files to upsert at once
+        paths: if present use these instead of walking bulk path
     """
 
     data_path = Path(congress_bulk_path) / "data"
@@ -175,6 +176,7 @@ def upsert_textversion_xml(
     conn_str: str,
     batch_size: int = 50,
     echo: bool = False,
+    paths: Optional[list[Path]] = None,
 ):
     """Upsert textversion xml files into postgres
 
@@ -182,6 +184,7 @@ def upsert_textversion_xml(
         congress_bulk_path: should have "cache" and "data" as subdirectories
         conn_str: postgres connection string
         batch_size: number of billstatus files to upsert at once
+        paths: if present use these instead of walking bulk path
     """
 
     data_path = Path(congress_bulk_path) / "data"
@@ -191,7 +194,15 @@ def upsert_textversion_xml(
     rows = []
     ibatch = 0
 
-    for path_object in data_path.rglob("*.xml"):
+    if paths is None:
+        logger.info("walking entire bulk data path")
+        path_iter = data_path.rglob("*.xml")
+    else:
+        logger.info(f"walking {len(paths)} input paths")
+        path_iter = paths
+
+
+    for path_object in path_iter:
         path_str = str(path_object.relative_to(congress_bulk_path))
 
         if "/uslm/" in path_str:
@@ -199,11 +210,11 @@ def upsert_textversion_xml(
         else:
             xml_type = "dtd"
 
-        if match := re.match(utils.TEXTVERSION_BILLS_PATTERN, path_object.name):
+        if match := re.match(utils.TEXTVERSION_BILLS_PATH_PATTERN, path_str):
             legis_class = "bills"
             legis_version = match.groupdict()["legis_version"]
 
-        elif match := re.match(utils.TEXTVERSION_PLAW_PATTERN, path_object.name):
+        elif match := re.match(utils.TEXTVERSION_PLAW_PATH_PATTERN, path_str):
             legis_class = "plaw"
             legis_version = "plaw"
 
