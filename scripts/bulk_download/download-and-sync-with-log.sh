@@ -1,2 +1,2 @@
 bash ./download.sh &> "logs/download-$(date +%s).log"
-./sync.sh
+bash ./sync.sh &> "logs/sync-$(date +%s).log"
