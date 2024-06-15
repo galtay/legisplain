@@ -28,6 +28,7 @@ For example,
 ```yaml
 ---
 bulk_path: "/home/user/data/congress-bulk"
+bulk_path: "/home/user/data/congress-hf"
 s3_bucket: "hyperdemocracy"
 pg_conn_str: "postgresql+psycopg2://[user[:password]@][netloc][:port][/dbname][?param1=value1&...]
 ```
@@ -49,8 +50,8 @@ cd scripts/bulk_download
 
 ```bash
 python main.py pg-populate-billstatus
-python main.py pg-populate-textversion-xml
-python main.py pg-populate-unified-xml
+python main.py pg-populate-textversion
+python main.py pg-populate-unified
 ```
 
 
@@ -58,6 +59,6 @@ python main.py pg-populate-unified-xml
 
 ```bash
 python main.py hf-upload-billstatus
-python main.py hf-upload-textversion-xml
-python main.py hf-upload-unified-xml
+python main.py hf-upload-textversion
+python main.py hf-upload-unified
 ```
