@@ -69,7 +69,11 @@ DROP TABLE IF EXISTS textversion_tag
 sql_create_textversion_tag = """
 CREATE TABLE IF NOT EXISTS textversion_tag (
   tvt_id varchar PRIMARY KEY
+  ,tv_id varchar NOT NULL
+  ,legis_id varchar NOT NULL
+  ,legis_version varchar NOT NULL
   ,congress_num integer NOT NULL
+  ,legis_type varchar NOT NULL
   ,file_name varchar NOT NULL
   ,root_name varchar NOT NULL
   ,root_attrs JSON NOT NULL
@@ -424,6 +428,20 @@ def upsert_textversion_tag(
                     ii,
                     xml_type,
                 ),
+                "tv_id": "{}-{}-{}-{}-{}".format(
+                    match.groupdict()["congress_num"],
+                    match.groupdict()["legis_type"],
+                    match.groupdict()["legis_num"],
+                    legis_version,
+                    xml_type,
+                ),
+                "legis_id": "{}-{}-{}".format(
+                    match.groupdict()["congress_num"],
+                    match.groupdict()["legis_type"],
+                    match.groupdict()["legis_num"],
+                ),
+                "legis_version": legis_version,
+                "legis_type": match.groupdict()["legis_type"],
                 "congress_num": int(match.groupdict()["congress_num"]),
                 "file_name": Path(path_str).name,
                 "root_name": root_name,
