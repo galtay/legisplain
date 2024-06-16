@@ -29,7 +29,7 @@ sql_drop_billstatus = """
 DROP TABLE IF EXISTS billstatus
 """
 sql_create_billstatus = """
-CREATE TABLE billstatus (
+CREATE TABLE IF NOT EXISTS billstatus (
   legis_id varchar PRIMARY KEY
   ,congress_num integer NOT NULL
   ,legis_type varchar NOT NULL
@@ -45,7 +45,7 @@ sql_drop_textversion = """
 DROP TABLE IF EXISTS textversion
 """
 sql_create_textversion = """
-CREATE TABLE textversion (
+CREATE TABLE IF NOT EXISTS textversion (
   tv_id varchar PRIMARY KEY
   ,legis_id varchar NOT NULL
   ,congress_num integer NOT NULL
@@ -63,9 +63,35 @@ CREATE TABLE textversion (
 )
 """
 
+sql_drop_textversion_tag = """
+DROP TABLE IF EXISTS textversion_tag
+"""
+sql_create_textversion_tag = """
+CREATE TABLE IF NOT EXISTS textversion_tag (
+  tvt_id varchar PRIMARY KEY
+  ,congress_num integer NOT NULL
+  ,file_name varchar NOT NULL
+  ,root_name varchar NOT NULL
+  ,root_attrs JSON NOT NULL
+  ,child_indx integer NOT NULL
+  ,child_name varchar NOT NULL
+  ,child_xml XML NOT NULL
+)
+"""
+
+
 sql_drop_unified = """
 DROP TABLE IF EXISTS unified
 """
+
+
+def create_tables(conn_str: str, echo=False):
+    engine = create_engine(conn_str, echo=echo)
+    with engine.connect() as conn:
+        conn.execute(text(sql_create_billstatus))
+        conn.execute(text(sql_create_textversion))
+        conn.execute(text(sql_create_textversion_tag))
+        conn.commit()
 
 
 def reset_tables(conn_str: str, echo=False):
@@ -75,6 +101,8 @@ def reset_tables(conn_str: str, echo=False):
         conn.execute(text(sql_create_billstatus))
         conn.execute(text(sql_drop_textversion))
         conn.execute(text(sql_create_textversion))
+        conn.execute(text(sql_drop_textversion_tag))
+        conn.execute(text(sql_create_textversion_tag))
         conn.execute(text(sql_drop_unified))
         conn.commit()
 
@@ -203,7 +231,6 @@ def upsert_textversion(
         logger.info(f"walking {len(paths)} input paths")
         path_iter = paths
 
-
     for path_object in path_iter:
         path_str = str(path_object.relative_to(congress_bulk_path))
 
@@ -280,9 +307,7 @@ def upsert_textversion(
         rows.append(row)
 
         if len(rows) >= batch_size:
-            rich.print(
-                f"upserting textversion batch {ibatch} with {len(rows)} rows."
-            )
+            rich.print(f"upserting textversion batch {ibatch} with {len(rows)} rows.")
             pt1 = "({})".format(", ".join(row.keys()))
             pt2 = "({})".format(", ".join([f":{key}" for key in row.keys()]))
             pt3 = ", ".join(f"{key} = EXCLUDED.{key}" for key in row.keys())
@@ -313,6 +338,135 @@ def upsert_textversion(
             conn.commit()
 
     return missed
+
+
+def get_root_tag(soup):
+    for child in soup.children:
+        if child.name is not None:
+            return child
+
+
+def upsert_textversion_tag(
+    congress_bulk_path: Union[str, Path],
+    conn_str: str,
+    batch_size: int = 50,
+    echo: bool = False,
+    paths: Optional[list[Path]] = None,
+):
+    """Upsert textversion xml tags into postgres
+
+    Args:
+        congress_bulk_path: should have "cache" and "data" as subdirectories
+        conn_str: postgres connection string
+        batch_size: number of billstatus files to upsert at once
+        paths: if present use these instead of walking bulk path
+    """
+
+    data_path = Path(congress_bulk_path) / "data"
+    engine = create_engine(conn_str, echo=echo)
+
+    rows = []
+    ibatch = 0
+
+    if paths is None:
+        logger.info("walking entire bulk data path")
+        path_iter = data_path.rglob("*.xml")
+    else:
+        logger.info(f"walking {len(paths)} input paths")
+        path_iter = paths
+
+    for path_object in path_iter:
+        path_str = str(path_object.relative_to(congress_bulk_path))
+
+        if "/uslm/" in path_str:
+            continue
+        xml_type = "dtd"
+
+        if match := re.match(utils.TEXTVERSION_BILLS_PATH_PATTERN, path_str):
+            legis_class = "bills"
+            legis_version = match.groupdict()["legis_version"]
+
+        elif match := re.match(utils.TEXTVERSION_PLAW_PATH_PATTERN, path_str):
+            legis_class = "plaw"
+            legis_version = "plaw"
+
+        else:
+            continue
+
+        xml = path_object.read_text().strip()
+        soup = BeautifulSoup(xml, "xml")
+        root_tag = get_root_tag(soup)
+        root_name = root_tag.name
+        root_name = root_name.replace("{http://schemas.gpo.gov/xml/uslm}", "")
+        if root_name not in (
+            "bill",
+            "resolution",
+            "amendment-doc",
+            "pLaw",
+        ):
+            print(f"root name not recognized: {root_name}")
+
+        xml_pretty = (
+            soup.prettify()
+        )  # note this also fixes invalid xml that bs leniently parsed
+        tv_txt = get_legis_text_v1(xml)
+
+        ii = 0
+        for child in root_tag.children:
+            if child.get_text().strip() == "":
+                continue
+            row = {
+                "tvt_id": "{}-{}-{}-{}-{}-{}".format(
+                    match.groupdict()["congress_num"],
+                    match.groupdict()["legis_type"],
+                    match.groupdict()["legis_num"],
+                    legis_version,
+                    ii,
+                    xml_type,
+                ),
+                "congress_num": int(match.groupdict()["congress_num"]),
+                "file_name": Path(path_str).name,
+                "root_name": root_name,
+                "root_attrs": json.dumps(root_tag.attrs),
+                "child_indx": ii,
+                "child_name": child.name,
+                "child_xml": child.prettify().strip(),
+            }
+            rows.append(row)
+            ii += 1
+
+        if len(rows) >= batch_size:
+            rich.print(
+                f"upserting textversion_tag batch {ibatch} with {len(rows)} rows."
+            )
+            pt1 = "({})".format(", ".join(row.keys()))
+            pt2 = "({})".format(", ".join([f":{key}" for key in row.keys()]))
+            pt3 = ", ".join(f"{key} = EXCLUDED.{key}" for key in row.keys())
+            sql = f"""
+            INSERT INTO textversion_tag {pt1} VALUES {pt2}
+            ON CONFLICT (tvt_id) DO UPDATE SET
+            {pt3}
+            """
+            with engine.connect() as conn:
+                conn.execute(text(sql), rows)
+                conn.commit()
+
+            rows = []
+            ibatch += 1
+
+    if len(rows) > 0:
+        rich.print(f"upserting textversion_tag batch {ibatch} with {len(rows)} rows.")
+        pt1 = "({})".format(", ".join(row.keys()))
+        pt2 = "({})".format(", ".join([f":{key}" for key in row.keys()]))
+        pt3 = ", ".join(f"{key} = EXCLUDED.{key}" for key in row.keys())
+        sql = f"""
+        INSERT INTO textversion_tag {pt1} VALUES {pt2}
+        ON CONFLICT (tvt_id) DO UPDATE SET
+        {pt3}
+        """
+        with engine.connect() as conn:
+            conn.execute(text(sql), rows)
+            conn.commit()
 
 
 def create_unified(conn_str: str):

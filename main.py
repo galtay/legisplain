@@ -120,8 +120,19 @@ def pg_reset_tables(
         config = yaml.safe_load(fp)
     logger.info(config)
     conn_str = config["pg_conn_str"]
-    congress_bulk_path = config["bulk_path"]
     populate_pg.reset_tables(conn_str, echo=True)
+
+
+@app.command()
+def pg_create_tables(
+    log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
+):
+    logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
+    with Path("config.yml").open("r") as fp:
+        config = yaml.safe_load(fp)
+    logger.info(config)
+    conn_str = config["pg_conn_str"]
+    populate_pg.create_tables(conn_str, echo=True)
 
 
 @app.command()
@@ -181,6 +192,34 @@ def pg_populate_textversion(
         paths=tv_paths,
     )
 
+@app.command()
+def pg_populate_textversion_tag(
+    log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
+    batch_size: int = 100,
+    echo: bool = False,
+    log_path: Optional[Path] = None,
+):
+    logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
+    with Path("config.yml").open("r") as fp:
+        config = yaml.safe_load(fp)
+    logger.info(config)
+    conn_str = config["pg_conn_str"]
+    congress_bulk_path = Path(config["bulk_path"])
+
+    if log_path is not None:
+        paths = utils.get_paths_from_download_logs(congress_bulk_path, log_path)
+        tv_paths = paths["tvb"] + paths["tvp"]
+    else:
+        tv_paths = None
+
+    populate_pg.upsert_textversion_tag(
+        congress_bulk_path,
+        conn_str,
+        batch_size=batch_size,
+        echo=echo,
+        paths=tv_paths,
+    )
+
 
 @app.command()
 def pg_populate_unified(
@@ -226,6 +265,23 @@ def hf_upload_textversion(
     conn_str = config["pg_conn_str"]
     congress_hf_path = config["hf_path"]
     upload_hf.upload_textversion(
+        congress_hf_path,
+        conn_str,
+    )
+
+
+@app.command()
+def hf_upload_textversion_tag(
+    log_level: LOG_LEVEL_ANNOTATED = LogLevel.info,
+    echo: bool = False,
+):
+    logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
+    with Path("config.yml").open("r") as fp:
+        config = yaml.safe_load(fp)
+    logger.info(config)
+    conn_str = config["pg_conn_str"]
+    congress_hf_path = config["hf_path"]
+    upload_hf.upload_textversion_tag(
         congress_hf_path,
         conn_str,
     )

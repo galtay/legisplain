@@ -68,7 +68,7 @@ def get_paths_from_download_logs(congress_bulk_path: Path, log_path: Path):
 
             matches[key].append(mm)
             lines[key].append(line)
-            pp = congress_bulk_path / mm.string[mm.span()[0]:mm.span()[1]]
+            pp = congress_bulk_path / mm.string[mm.span()[0] : mm.span()[1]]
             if pp.exists():
                 paths[key].append(pp)
 

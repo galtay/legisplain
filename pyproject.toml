@@ -19,6 +19,7 @@ huggingface-hub = "^0.23.3"
 pyarrow = "^16.1.0"
 datasets = "^2.19.2"
 unstructured = "^0.14.6"
+duckdb = "^1.0.0"
 
 
 [build-system]
