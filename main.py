@@ -248,6 +248,7 @@ def hf_upload_billstatus(
     logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
     with Path("config.yml").open("r") as fp:
         config = yaml.safe_load(fp)
+    logger.info("hf_upload_billstatus")
     logger.info(config)
     conn_str = config["pg_conn_str"]
     congress_hf_path = config["hf_path"]
@@ -265,6 +266,7 @@ def hf_upload_textversion(
     logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
     with Path("config.yml").open("r") as fp:
         config = yaml.safe_load(fp)
+    logger.info("hf_upload_textversion")
     logger.info(config)
     conn_str = config["pg_conn_str"]
     congress_hf_path = config["hf_path"]
@@ -282,6 +284,7 @@ def hf_upload_textversion_tag(
     logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
     with Path("config.yml").open("r") as fp:
         config = yaml.safe_load(fp)
+    logger.info("hf_upload_textversion_tag")
     logger.info(config)
     conn_str = config["pg_conn_str"]
     congress_hf_path = config["hf_path"]
@@ -299,6 +302,7 @@ def hf_upload_unified(
     logging.basicConfig(level=log_level.value, handlers=[RichHandler()])
     with Path("config.yml").open("r") as fp:
         config = yaml.safe_load(fp)
+    logger.info("hf_upload_unified")
     logger.info(config)
     conn_str = config["pg_conn_str"]
     congress_hf_path = config["hf_path"]
