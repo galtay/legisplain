@@ -3,6 +3,7 @@
 
 from collections import OrderedDict
 from collections import Counter
+from datetime import datetime, timezone
 import json
 import logging
 from pathlib import Path
@@ -37,8 +38,14 @@ CREATE TABLE IF NOT EXISTS billstatus (
   ,bulk_path varchar NOT NULL
   ,lastmod timestamp without time zone NOT NULL
   ,bs_xml XML NOT NULL
-  ,bs_json JSON NOT NULL
+  ,bs_json JSONB NOT NULL
 )
+"""
+
+sql_add_index_billstatus = """
+CREATE INDEX IF NOT EXISTS billstatus_bs_json_gin
+  ON billstatus
+  USING GIN (bs_json)
 """
 
 sql_drop_textversion = """
@@ -97,17 +104,109 @@ def create_tables(conn_str: str, echo=False):
         conn.execute(text(sql_create_textversion_tag))
         conn.commit()
 
+    with engine.connect() as conn:
+        conn.execute(text(sql_add_index_billstatus))
+        conn.commit()
+
 
 def reset_tables(conn_str: str, echo=False):
     engine = create_engine(conn_str, echo=echo)
     with engine.connect() as conn:
         conn.execute(text(sql_drop_billstatus))
-        conn.execute(text(sql_create_billstatus))
         conn.execute(text(sql_drop_textversion))
-        conn.execute(text(sql_create_textversion))
         conn.execute(text(sql_drop_textversion_tag))
-        conn.execute(text(sql_create_textversion_tag))
         conn.execute(text(sql_drop_unified))
+        conn.commit()
+    create_tables(conn_str, echo=echo)
+
+def _normalize_lastmod(value) -> Optional[str]:
+    """
+    Normalize the GovInfo-style lastmod strings (e.g., '2025-08-08T20:08:12.920Z')
+    or DB datetime objects to a tz-naive, second-precision string:
+        'YYYY-MM-DD HH:MM:SS'
+    """
+    if value is None:
+        return None
+
+    if isinstance(value, datetime):
+        # Drop tz and microseconds to consistent seconds precision.
+        return value.replace(tzinfo=None, microsecond=0).strftime("%Y-%m-%d %H:%M:%S")
+
+    s = str(value).strip()
+    # Try robust ISO8601 parsing first (handles Z and offsets).
+    try:
+        # Python 3.11+ has fromisoformat but doesn't accept 'Z'; handle 'Z' -> '+00:00'
+        if s.endswith("Z"):
+            dt = datetime.fromisoformat(s[:-1] + "+00:00")
+        else:
+            dt = datetime.fromisoformat(s)
+        # Convert to naive UTC seconds (since DB column is without TZ).
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+        dt = dt.replace(microsecond=0)
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        # Fallback: manual cleanup (T->space, strip trailing Z/offset, drop fraction)
+        s = s.replace("T", " ").replace("Z", "")
+        # Drop offset if present (e.g., '+00:00'/'-05:00')
+        for tz_sep in ("+", "-"):
+            # Keep first 19 chars 'YYYY-MM-DD HH:MM:SS' if offset exists
+            if tz_sep in s and len(s) >= 19:
+                s = s[:19]
+                break
+        # Drop fractional seconds
+        if "." in s:
+            s = s.split(".")[0]
+        # Final sanity slice to seconds
+        return s[:19]
+
+
+def _load_known_lastmods(engine, table: str, key_col: str) -> dict[str, str]:
+    """
+    Load {key: normalized_lastmod_string} from the DB to avoid per-row queries.
+    """
+    known: dict[str, str] = {}
+    with engine.connect() as conn:
+        rows = conn.execute(text(f"select {key_col}, lastmod from {table}")).fetchall()
+        for k, lm in rows:
+            known[str(k)] = _normalize_lastmod(lm)
+    return known
+
+def _flush_billstatus_batch(engine, rows: list[dict]):
+    """
+    Batch UPSERT to billstatus. Only updates when lastmod changed.
+    """
+    cols = [
+        "legis_id",
+        "congress_num",
+        "legis_type",
+        "legis_num",
+        "bulk_path",
+        "lastmod",
+        "bs_xml",
+        "bs_json",
+    ]
+    placeholders = "(" + ", ".join(f":{c}" for c in cols) + ")"
+
+    update_set = """
+      congress_num = EXCLUDED.congress_num,
+      legis_type   = EXCLUDED.legis_type,
+      legis_num    = EXCLUDED.legis_num,
+      bulk_path    = EXCLUDED.bulk_path,
+      lastmod      = EXCLUDED.lastmod,
+      bs_xml       = EXCLUDED.bs_xml,
+      bs_json      = EXCLUDED.bs_json
+    """
+
+    sql = f"""
+    INSERT INTO billstatus ({", ".join(cols)}) VALUES {placeholders}
+    ON CONFLICT (legis_id) DO UPDATE SET
+      {update_set}
+    WHERE billstatus.lastmod IS DISTINCT FROM EXCLUDED.lastmod
+    """
+
+    with engine.connect() as conn:
+        conn.execute(text(sql), rows)
         conn.commit()
 
 
@@ -129,9 +228,13 @@ def upsert_billstatus(
 
     data_path = Path(congress_bulk_path) / "data"
     engine = create_engine(conn_str, echo=echo)
+    known_lastmods = _load_known_lastmods(engine, table="billstatus", key_col="legis_id")
 
-    rows = []
+    rows: list[OrderedDict] = []
     ibatch = 0
+    scanned = 0
+    skipped = 0
+    prepared = 0
 
     if paths is None:
         logger.info("walking entire bulk data path")
@@ -141,13 +244,32 @@ def upsert_billstatus(
         path_iter = paths
 
     for path_object in path_iter:
+        scanned += 1
         path_str = str(path_object.relative_to(congress_bulk_path))
-        if (match := re.match(utils.BILLSTATUS_PATH_PATTERN, path_str)) is None:
+        match = re.match(utils.BILLSTATUS_PATH_PATTERN, path_str)
+        if match is None:
             rich.print("billstatus oops: {}".format(path_object))
             continue
 
+        congress_num = match.groupdict()["congress_num"]
+        legis_type = match.groupdict()["legis_type"]
+        legis_num = match.groupdict()["legis_num"]
+        legis_id = f"{congress_num}-{legis_type}-{legis_num}"
+
         lastmod_path = path_object.parent / "fdsys_billstatus-lastmod.txt"
-        lastmod_str = lastmod_path.read_text()
+        if lastmod_path.exists():
+            lastmod_raw = lastmod_path.read_text().strip()
+            lastmod_norm = _normalize_lastmod(lastmod_raw)
+            # Cheap skip if unchanged in DB
+            if known_lastmods.get(legis_id) == lastmod_norm:
+                skipped += 1
+                continue
+            # We'll store the normalized (tz-naive) string.
+            lastmod_store = lastmod_norm
+        else:
+            rich.print("no lastmod file found oops: {}".format(lastmod_path))
+            continue
+
         xml = path_object.read_text().strip()
         soup = BeautifulSoup(xml, "xml")
         xml_pretty = (
@@ -157,52 +279,36 @@ def upsert_billstatus(
 
         row = OrderedDict(
             {
-                "legis_id": "{}-{}-{}".format(
-                    match.groupdict()["congress_num"],
-                    match.groupdict()["legis_type"],
-                    match.groupdict()["legis_num"],
-                ),
-                "congress_num": int(match.groupdict()["congress_num"]),
-                "legis_type": match.groupdict()["legis_type"],
-                "legis_num": int(match.groupdict()["legis_num"]),
+                "legis_id": legis_id,
+                "congress_num": int(congress_num),
+                "legis_type": legis_type,
+                "legis_num": int(legis_num),
                 "bulk_path": path_str,
-                "lastmod": lastmod_str,
+                "lastmod": lastmod_store,  # normalized, tz-naive seconds
                 "bs_xml": xml_pretty,
                 "bs_json": bs.model_dump_json(),
             }
         )
         rows.append(row)
+        prepared += 1
 
         if len(rows) >= batch_size:
             rich.print(f"upserting billstatus batch {ibatch} with {len(rows)} rows.")
-            pt1 = "({})".format(", ".join(row.keys()))
-            pt2 = "({})".format(", ".join([f":{key}" for key in row.keys()]))
-            pt3 = ", ".join(f"{key} = EXCLUDED.{key}" for key in row.keys())
-            sql = f"""
-            INSERT INTO billstatus {pt1} VALUES {pt2}
-            ON CONFLICT (legis_id) DO UPDATE SET
-            {pt3}
-            """
-            with engine.connect() as conn:
-                conn.execute(text(sql), rows)
-                conn.commit()
-
+            _flush_billstatus_batch(engine, rows)
             rows = []
             ibatch += 1
 
     if len(rows) > 0:
         rich.print(f"upserting billstatus batch {ibatch} with {len(rows)} rows.")
-        pt1 = "({})".format(", ".join(row.keys()))
-        pt2 = "({})".format(", ".join([f":{key}" for key in row.keys()]))
-        pt3 = ", ".join(f"{key} = EXCLUDED.{key}" for key in row.keys())
-        sql = f"""
-        INSERT INTO billstatus {pt1} VALUES {pt2}
-        ON CONFLICT (legis_id) DO UPDATE SET
-        {pt3}
-        """
-        with engine.connect() as conn:
-            conn.execute(text(sql), rows)
-            conn.commit()
+        _flush_billstatus_batch(engine, rows)
+
+
+    logger.info(
+        f"billstatus scan complete: scanned={scanned}, skipped_unchanged={skipped}, prepared={prepared}"
+    )
+    return {"scanned": scanned, "skipped": skipped, "prepared": prepared}
+
+
 
 
 def upsert_textversion(
