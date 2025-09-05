@@ -1,27 +1,31 @@
-[tool.poetry]
+[project]
 name = "legisplain"
 version = "0.1.0"
 description = ""
-authors = ["Gabriel Altay <gabriel.altay@gmail.com>"]
+authors = [
+    {name = "Gabriel Altay", email = "gabriel.altay@gmail.com"},
+]
 readme = "README.md"
-
-[tool.poetry.dependencies]
-python = ">=3.10,<3.13"
-united-states-congress = {git = "https://github.com/unitedstates/congress.git"}
-typer = "^0.12.3"
-rich = "^13.7.1"
-beautifulsoup4 = "^4.12.3"
-psycopg2-binary = "^2.9.9"
-pydantic = "^2.7.3"
-pandas = "^2.2.2"
-sqlalchemy = "^2.0.30"
-huggingface-hub = "^0.23.3"
-pyarrow = "^16.1.0"
-datasets = "^2.19.2"
-unstructured = "^0.14.6"
-duckdb = "^1.0.0"
-
+requires-python = ">=3.10,<3.13"
+dependencies = [
+    "beautifulsoup4>=4.13.5",
+    "datasets>=4.0.0",
+    "huggingface-hub>=0.34.4",
+    "ipython>=8.37.0",
+    "pandas>=2.3.2",
+    "psycopg2-binary>=2.9.10",
+    "pyarrow>=21.0.0",
+    "pydantic>=2.11.7",
+    "rich>=14.1.0",
+    "sqlalchemy>=2.0.43",
+    "typer>=0.17.3",
+    "united-states-congress",
+    "unstructured>=0.18.14",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+united-states-congress = { git = "https://github.com/unitedstates/congress" }
