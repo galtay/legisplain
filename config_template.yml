@@ -2,4 +2,4 @@
 bulk_path: "/path/to/congress-bulk"
 hf_path: "/path/to/congress-hf"
 s3_bucket: "hyperdemocracy"
-pg_conn_str: "postgresql+psycopg2://[user[:password]@][netloc][:port][/dbname][?param1=value1&...]
+pg_conn_str: "postgresql+psycopg2://[user[:password]@][netloc][:port][/dbname][?param1=value1&...]"

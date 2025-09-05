@@ -84,11 +84,11 @@ def write_scripts(
     # --------------------------------------------------
     download_lines = []
     for cn in utils.BILLSTATUS_CONGRESS_NUMS:
-        download_lines.append(f"usc-run govinfo --bulkdata=BILLSTATUS --congress={cn}")
+        download_lines.append(f"uv run usc-run govinfo --bulkdata=BILLSTATUS --congress={cn}")
 
     for cn in utils.TEXTVERSION_CONGRESS_NUMS:
-        download_lines.append(f"usc-run govinfo --bulkdata=BILLS --congress={cn}")
-        download_lines.append(f"usc-run govinfo --bulkdata=PLAW --congress={cn}")
+        download_lines.append(f"uv run usc-run govinfo --bulkdata=BILLS --congress={cn}")
+        download_lines.append(f"uv run usc-run govinfo --bulkdata=PLAW --congress={cn}")
 
     with (base_path / "download.sh").open("w") as fp:
         for line in download_lines:

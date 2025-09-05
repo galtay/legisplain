@@ -1,1 +1,26 @@
-tmp
+uv run usc-run govinfo --bulkdata=BILLSTATUS --congress=108
+uv run usc-run govinfo --bulkdata=BILLSTATUS --congress=109
+uv run usc-run govinfo --bulkdata=BILLSTATUS --congress=110
+uv run usc-run govinfo --bulkdata=BILLSTATUS --congress=111
+uv run usc-run govinfo --bulkdata=BILLSTATUS --congress=112
+uv run usc-run govinfo --bulkdata=BILLSTATUS --congress=113
+uv run usc-run govinfo --bulkdata=BILLSTATUS --congress=114
+uv run usc-run govinfo --bulkdata=BILLSTATUS --congress=115
+uv run usc-run govinfo --bulkdata=BILLSTATUS --congress=116
+uv run usc-run govinfo --bulkdata=BILLSTATUS --congress=117
+uv run usc-run govinfo --bulkdata=BILLSTATUS --congress=118
+uv run usc-run govinfo --bulkdata=BILLSTATUS --congress=119
+uv run usc-run govinfo --bulkdata=BILLS --congress=113
+uv run usc-run govinfo --bulkdata=PLAW --congress=113
+uv run usc-run govinfo --bulkdata=BILLS --congress=114
+uv run usc-run govinfo --bulkdata=PLAW --congress=114
+uv run usc-run govinfo --bulkdata=BILLS --congress=115
+uv run usc-run govinfo --bulkdata=PLAW --congress=115
+uv run usc-run govinfo --bulkdata=BILLS --congress=116
+uv run usc-run govinfo --bulkdata=PLAW --congress=116
+uv run usc-run govinfo --bulkdata=BILLS --congress=117
+uv run usc-run govinfo --bulkdata=PLAW --congress=117
+uv run usc-run govinfo --bulkdata=BILLS --congress=118
+uv run usc-run govinfo --bulkdata=PLAW --congress=118
+uv run usc-run govinfo --bulkdata=BILLS --congress=119
+uv run usc-run govinfo --bulkdata=PLAW --congress=119

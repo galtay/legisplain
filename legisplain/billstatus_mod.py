@@ -21,7 +21,7 @@ def get_text_or_none(xel: Optional[Element] = None) -> Optional[str]:
 
 class Activity(BaseModel):
     name: str
-    date: datetime.datetime
+    date: datetime.datetime | None = None
 
     @classmethod
     def list_from_xel(cls, xel: Optional[Element]) -> list[Activity]:
@@ -121,6 +121,8 @@ class SourceSystem(BaseModel):
             return None
         else:
             assert xel.tag == "sourceSystem"
+            if xel.findall("*") == []:
+                return None
             return cls(
                 name=get_text_or_none(xel.find("name")),
                 code=get_text_or_none(xel.find("code")),
@@ -129,7 +131,7 @@ class SourceSystem(BaseModel):
 
 class Action(BaseModel):
     action_date: datetime.date
-    text: str
+    text: Optional[str] = None
     type: Optional[str] = None
     action_code: Optional[str] = None
     source_system: Optional[SourceSystem] = None
@@ -427,8 +429,16 @@ class Note(BaseModel):
         for item in xel:
             if item.tag != "item":
                 continue
+
+            # check for cdata wrapper
+            text_el = item.find("text")
+            if text_el is None:
+                cdata_el = item.find("cdata")
+                if cdata_el is not None:
+                    text_el = cdata_el.find("text")
+
             note = cls(
-                text=get_text_or_none(item.find("text")),
+                text=get_text_or_none(text_el),
                 links=Link.list_from_xel(item.find("links")),
             )
             result.append(note)
@@ -656,12 +666,20 @@ class Summary(BaseModel):
         for item in xel:
             if item.tag != "summary":
                 continue
+
+            # Prefer <summary><text>, but support <summary><cdata><text>> as fallback.
+            text_el = item.find("text")
+            if text_el is None:
+                cdata_el = item.find("cdata")
+                if cdata_el is not None:
+                    text_el = cdata_el.find("text")
+
             summary = cls(
                 version_code=get_text_or_none(item.find("versionCode")),
                 action_date=get_text_or_none(item.find("actionDate")),
                 action_desc=get_text_or_none(item.find("actionDesc")),
                 update_date=get_text_or_none(item.find("updateDate")),
-                text=get_text_or_none(item.find("text")),
+                text=get_text_or_none(text_el),
             )
             result.append(summary)
         return result
