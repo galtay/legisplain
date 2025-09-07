@@ -210,6 +210,28 @@ def _flush_billstatus_batch(engine, rows: list[dict]):
         conn.commit()
 
 
+def _flush_textversion_batch(engine, rows: list[dict]):
+    """Batch UPSERT to textversion. Only updates when lastmod changed."""
+    if not rows:
+        return
+
+    cols = list(rows[0].keys())
+    placeholders = "(" + ", ".join(f":{c}" for c in cols) + ")"
+
+    update_set = ",\n ".join(f"{c} = EXCLUDED.{c}" for c in cols if c not in ("tv_id",))
+
+    sql = f"""
+    INSERT INTO textversion ({', '.join(cols)}) VALUES {placeholders}
+    ON CONFLICT (tv_id) DO UPDATE SET
+    {update_set}
+    WHERE textversion.lastmod IS DISTINCT FROM EXCLUDED.lastmod
+    """
+
+    with engine.connect() as conn:
+        conn.execute(text(sql), rows)
+        conn.commit()
+
+
 def upsert_billstatus(
     congress_bulk_path: Union[str, Path],
     conn_str: str,
@@ -309,8 +331,6 @@ def upsert_billstatus(
     return {"scanned": scanned, "skipped": skipped, "prepared": prepared}
 
 
-
-
 def upsert_textversion(
     congress_bulk_path: Union[str, Path],
     conn_str: str,
@@ -318,84 +338,94 @@ def upsert_textversion(
     echo: bool = False,
     paths: Optional[list[Path]] = None,
 ):
-    """Upsert textversion xml files into postgres
+    """Upsert textversion xml files into postgres (lastmod-aware).
 
-    Args:
-        congress_bulk_path: should have "cache" and "data" as subdirectories
-        conn_str: postgres connection string
-        batch_size: number of billstatus files to upsert at once
-        paths: if present use these instead of walking bulk path
+    Skips rows where the on-disk lastmod matches what's stored in the DB and
+    only updates rows when lastmod changes. Lastmod is normalized to a
+    tz-naive, seconds-precision string to match the TIMESTAMP WITHOUT TIME ZONE
+    column and avoid microsecond churn.
     """
 
     data_path = Path(congress_bulk_path) / "data"
     engine = create_engine(conn_str, echo=echo)
-    missed = Counter()
 
-    rows = []
+    # Cache existing lastmods keyed by tv_id to avoid per-row SELECTs
+    known_lastmods = _load_known_lastmods(engine, table="textversion", key_col="tv_id")
+
+    missed = Counter()
+    rows: list[dict] = []
     ibatch = 0
+    scanned = 0
+    skipped = 0
+    prepared = 0
 
     if paths is None:
-        logger.info("walking entire bulk data path")
         path_iter = data_path.rglob("*.xml")
     else:
-        logger.info(f"walking {len(paths)} input paths")
         path_iter = paths
 
     for path_object in path_iter:
+        scanned += 1
         path_str = str(path_object.relative_to(congress_bulk_path))
 
-        if "/uslm/" in path_str:
-            xml_type = "uslm"
-        else:
-            xml_type = "dtd"
+        # Classify xml type
+        xml_type = "uslm" if "/uslm/" in path_str else "dtd"
 
-        if match := re.match(utils.TEXTVERSION_BILLS_PATH_PATTERN, path_str):
+        # Match bills vs plaw
+        match = None
+        legis_class = ""
+        legis_version = ""
+        if m := re.match(utils.TEXTVERSION_BILLS_PATH_PATTERN, path_str):
+            match = m
             legis_class = "bills"
-            legis_version = match.groupdict()["legis_version"]
-
-        elif match := re.match(utils.TEXTVERSION_PLAW_PATH_PATTERN, path_str):
+            legis_version = m.groupdict()["legis_version"]
+        elif m := re.match(utils.TEXTVERSION_PLAW_PATH_PATTERN, path_str):
+            match = m
             legis_class = "plaw"
             legis_version = "plaw"
-
         else:
             missed[path_object.name] += 1
             continue
 
-        lastmod_path = path_object.parent / (
-            path_object.name.split(".")[0] + "-lastmod.txt"
+        # Derive tv_id early (used for skip check)
+        tv_id = "{}-{}-{}-{}-{}".format(
+            match.groupdict()["congress_num"],
+            match.groupdict()["legis_type"],
+            match.groupdict()["legis_num"],
+            legis_version,
+            xml_type,
         )
-        lastmod_str = lastmod_path.read_text()
 
+        # Read + normalize lastmod (skip if unchanged)
+        lastmod_sidecar = path_object.parent / (path_object.stem + "-lastmod.txt")
+        if not lastmod_sidecar.exists():
+            # Mirror billstatus behavior: no lastmod file -> skip and log
+            rich.print(f"no lastmod file found oops: {lastmod_sidecar}")
+            continue
+        lastmod_raw = lastmod_sidecar.read_text().strip()
+        lastmod_norm = _normalize_lastmod(lastmod_raw)
+        if known_lastmods.get(tv_id) == lastmod_norm:
+            skipped += 1
+            continue
+
+        # Parse xml/text only when we know we're going to (up)insert
         xml = path_object.read_text().strip()
         soup = BeautifulSoup(xml, "xml")
-        xml_pretty = (
-            soup.prettify()
-        )  # note this also fixes invalid xml that bs leniently parsed
+        xml_pretty = soup.prettify()
         tv_txt = get_legis_text_v1(xml)
 
         root_tags = [el.name for el in soup.contents if el.name]
         if len(root_tags) != 1:
             rich.print("more than one non null root tag: ", root_tags)
+            root_tag = root_tags[0] if root_tags else ""
         else:
             root_tag = root_tags[0]
-            root_tag = root_tag.replace("{http://schemas.gpo.gov/xml/uslm}", "")
-
-        if root_tag not in (
-            "bill",
-            "resolution",
-            "amendment-doc",
-            "pLaw",
-        ):
+        root_tag = root_tag.replace("{http://schemas.gpo.gov/xml/uslm}", "")
+        if root_tag not in ("bill", "resolution", "amendment-doc", "pLaw"):
             print(f"root tag not recognized: {root_tag}")
 
         row = {
-            "tv_id": "{}-{}-{}-{}-{}".format(
-                match.groupdict()["congress_num"],
-                match.groupdict()["legis_type"],
-                match.groupdict()["legis_num"],
-                legis_version,
-                xml_type,
-            ),
+            "tv_id": tv_id,
             "legis_id": "{}-{}-{}".format(
                 match.groupdict()["congress_num"],
                 match.groupdict()["legis_type"],
@@ -408,46 +438,31 @@ def upsert_textversion(
             "legis_class": legis_class,
             "bulk_path": path_str,
             "file_name": Path(path_str).name,
-            "lastmod": lastmod_str,
+            "lastmod": lastmod_norm,  # normalized, tz-naive seconds
             "xml_type": xml_type,
             "root_tag": root_tag,
             "tv_xml": xml_pretty,
             "tv_txt": tv_txt,
         }
         rows.append(row)
+        prepared += 1
 
         if len(rows) >= batch_size:
             rich.print(f"upserting textversion batch {ibatch} with {len(rows)} rows.")
-            pt1 = "({})".format(", ".join(row.keys()))
-            pt2 = "({})".format(", ".join([f":{key}" for key in row.keys()]))
-            pt3 = ", ".join(f"{key} = EXCLUDED.{key}" for key in row.keys())
-            sql = f"""
-            INSERT INTO textversion {pt1} VALUES {pt2}
-            ON CONFLICT (tv_id) DO UPDATE SET
-            {pt3}
-            """
-            with engine.connect() as conn:
-                conn.execute(text(sql), rows)
-                conn.commit()
-
+            _flush_textversion_batch(engine, rows)
             rows = []
             ibatch += 1
 
-    if len(rows) > 0:
+    if rows:
         rich.print(f"upserting textversion batch {ibatch} with {len(rows)} rows.")
-        pt1 = "({})".format(", ".join(row.keys()))
-        pt2 = "({})".format(", ".join([f":{key}" for key in row.keys()]))
-        pt3 = ", ".join(f"{key} = EXCLUDED.{key}" for key in row.keys())
-        sql = f"""
-        INSERT INTO textversion {pt1} VALUES {pt2}
-        ON CONFLICT (tv_id) DO UPDATE SET
-        {pt3}
-        """
-        with engine.connect() as conn:
-            conn.execute(text(sql), rows)
-            conn.commit()
+        _flush_textversion_batch(engine, rows)
 
-    return missed
+    rich.print(
+        f"textversion scan complete: scanned={scanned}, skipped_unchanged={skipped}, prepared={prepared}"
+    )
+
+    return {"scanned": scanned, "skipped": skipped, "prepared": prepared, "missed": missed}
+
 
 
 def get_root_tag(soup):
@@ -617,7 +632,7 @@ def create_unified(conn_str: str):
     bs_tvs_v1 as (
       select
         legis_id,
-        json_array_elements(bs_json->'text_versions') as bs_tv
+        jsonb_array_elements(bs_json->'text_versions') as bs_tv
       from billstatus
     ),
 
@@ -646,8 +661,8 @@ def create_unified(conn_str: str):
     tvs as (
       select
         legis_id,
-        json_agg(
-          json_build_object(
+        jsonb_agg(
+          jsonb_build_object(
             'tv_id', tv_id,
             'legis_id', legis_id,
             'congress_num', congress_num,

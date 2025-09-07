@@ -24,6 +24,8 @@ configs:
         path: data/usc-117-billstatus.parquet
       - split: '118'
         path: data/usc-118-billstatus.parquet
+      - split: '119'
+        path: data/usc-119-billstatus.parquet
 license: mit
 language:
 - en
@@ -46,7 +48,7 @@ legisplain [legisplain](https://github.com/galtay/legisplain) repo.
 * [usc-textversion](https://huggingface.co/datasets/hyperdemocracy/usc-textversion) (different text versions of bills in xml)
 * [usc-unified](https://huggingface.co/datasets/hyperdemocracy/usc-unified) (combined metadata and text version xml)
 
-# BILLSTATUS (metadata for congresses 108-118)
+# BILLSTATUS (metadata for congresses 108-119)
 
 * https://www.govinfo.gov/bulkdata/BILLSTATUS
 * https://github.com/usgpo/bill-status/blob/main/BILLSTATUS-XML_User_User-Guide.md
@@ -70,6 +72,7 @@ Hyperdemocracy column descriptions.
   | lastmod | lastmod date during bulk download |
   | bs_xml | contents of billstatus XML file |
   | bs_json| billstatus XML parsed into JSON |
+  | * | all top level keys of the bs_json object also get their own column |
 
 See the [BILLSTATUS XML User Guide](https://github.com/usgpo/bill-status/blob/main/BILLSTATUS-XML_User_User-Guide.md) for descriptions of the other columns.
 
@@ -96,6 +99,7 @@ ds = load_dataset(path="hyperdemocracy/usc-billstatus", split="all")
 
 | Congress Number | Years | Metadata | Text |
 |-----------------|-------|----------|------|
+| 119             | 2025-2026 | True | True |
 | 118             | 2023-2024 | True | True |
 | 117             | 2021-2022 | True | True |
 | 116             | 2019-2020 | True | True |

@@ -14,6 +14,8 @@ configs:
         path: data/usc-117-textversion.parquet
       - split: '118'
         path: data/usc-118-textversion.parquet
+      - split: '119'
+        path: data/usc-119-textversion.parquet
 license: mit
 language:
 - en
@@ -37,7 +39,7 @@ legisplain [legisplain](https://github.com/galtay/legisplain) repo.
 * [usc-unified](https://huggingface.co/datasets/hyperdemocracy/usc-unified) (combined metadata and text version xml)
 
 
-# TEXTVERSIONS (text for congresses 113-118)
+# TEXTVERSIONS (text for congresses 113-119)
 
 * https://www.govinfo.gov/bulkdata/BILLS
 * https://xml.house.gov/
@@ -89,6 +91,7 @@ ds = load_dataset(path="hyperdemocracy/usc-textversion", split="all")
 
 | Congress Number | Years | Metadata | Text |
 |-----------------|-------|----------|------|
+| 119             | 2025-2026 | True | True |
 | 118             | 2023-2024 | True | True |
 | 117             | 2021-2022 | True | True |
 | 116             | 2019-2020 | True | True |
