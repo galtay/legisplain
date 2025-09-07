@@ -48,16 +48,16 @@ cd scripts/bulk_download
 ## Populate postgres
 
 ```bash
-python main.py pg-populate-billstatus
-python main.py pg-populate-textversion
-python main.py pg-populate-unified
+uv run main.py pg-populate-billstatus
+uv run main.py pg-populate-textversion
+uv run main.py pg-populate-unified
 ```
 
 
 ## Upload to Hugging Face
 
 ```bash
-python main.py hf-upload-billstatus
-python main.py hf-upload-textversion
-python main.py hf-upload-unified
+uv run main.py hf-upload-billstatus
+uv run main.py hf-upload-textversion
+uv run main.py hf-upload-unified
 ```
