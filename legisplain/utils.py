@@ -1,6 +1,10 @@
 from pathlib import Path
 import re
 
+import pandas as pd
+import rich
+from langchain_core.documents import Document
+
 
 BILLSTATUS_CONGRESS_NUMS = [108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119]
 TEXTVERSION_CONGRESS_NUMS = [113, 114, 115, 116, 117, 118, 119]
@@ -95,3 +99,36 @@ TEXTVERSION_PLAW_PATTERN = re.compile(
     """,
     re.VERBOSE,
 )
+
+
+def get_langchain_docs_from_unified(df: pd.DataFrame) -> list[Document]:
+    skipped = []
+    docs = []
+    for _, u_row in df.iterrows():
+        if len(u_row["tvs"]) == 0:
+            skipped.append(u_row["legis_id"])
+            continue
+        doc = Document(
+            page_content=u_row["tvs"][0]["tv_txt"],
+            metadata={
+                "tv_id": u_row["tvs"][0]["tv_id"],
+                "legis_version": u_row["tvs"][0]["legis_version"],
+                "legis_class": u_row["tvs"][0]["legis_class"],
+                "legis_id": u_row["legis_id"],
+                "congress_num": u_row["congress_num"],
+                "legis_type": u_row["legis_type"],
+                "legis_num": u_row["legis_num"],
+                "text_date": u_row["tvs"][0]["bs_tv"]["date"],
+                "title": u_row["bs_json"]["title"],
+                "sponsor_bioguide_id": u_row["bs_json"]["sponsor"]["bioguide_id"],
+                "sponsor_full_name": u_row["bs_json"]["sponsor"]["full_name"],
+                "sponsor_party": u_row["bs_json"]["sponsor"]["party"],
+                "sponsor_state": u_row["bs_json"]["sponsor"]["state"],
+                "introduced_date": u_row["bs_json"]["introduced_date"],
+                "policy_area": u_row["bs_json"]["policy_area"],
+            },
+        )
+        docs.append(doc)
+    if len(skipped) > 0:
+        rich.print(f"skipped {len(skipped)} rows with no text versions")
+    return docs
