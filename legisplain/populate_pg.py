@@ -608,7 +608,7 @@ def upsert_textversion_tag(
             conn.commit()
 
 
-def create_unified(conn_str: str):
+def create_unified(conn_str: str, echo: bool = False):
     """Join billstatus and textversion data.
     Note that this uses the dtd xml text version not the uslm xml versions.
 
@@ -690,7 +690,7 @@ def create_unified(conn_str: str):
     )
     """
 
-    engine = create_engine(conn_str, echo=True)
+    engine = create_engine(conn_str, echo=echo)
     with engine.connect() as conn:
         with conn.begin():
             result = conn.execute(text(sql))

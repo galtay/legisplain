@@ -1,5 +1,22 @@
 ---
-bulk_path: "/path/to/congress-bulk"
-hf_path: "/path/to/congress-hf"
+# Base data directory - all hyperdemocracy data will be stored under this path
+# Default: $HOME/hyperdemocracy-data if not specified
+hyperdemocracy_data_path: "/path/to/hyperdemocracy-data"
+
+# S3 bucket for syncing bulk downloads (default: "hyperdemocracy")
 s3_bucket: "hyperdemocracy"
+
+# PostgreSQL connection string (optional - only needed for database commands)
 pg_conn_str: "postgresql+psycopg2://[user[:password]@][netloc][:port][/dbname][?param1=value1&...]"
+
+# Chunking configuration (defaults shown - only needed for embedding workflows)
+# chunk_size: 8192
+# chunk_overlap: 512
+# chunking_version: 1
+
+# Embedding configuration (defaults shown - only needed for embedding workflows)  
+# embedding_model_name: "sentence-transformers/static-retrieval-mrl-en-v1"
+# embedding_version: 1
+
+# Congress numbers to process (defaults shown)
+# congress_nums: [119, 118, 117, 116, 115, 114, 113]

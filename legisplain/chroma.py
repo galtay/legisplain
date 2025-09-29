@@ -248,40 +248,5 @@ results = collection.query(
         return False
 
 
-if __name__ == "__main__":
-
-    congress_hf_path = Path("/Users/galtay/repos/legisplain/congress-hf")
-    chunks = [(8192, 512), (4096, 512), (2048, 256), (1024, 256)]
-    chunking_version = 1
-    embedding_model_name = "sentence-transformers/static-retrieval-mrl-en-v1"
-    embedding_version = 1
-    test_mode = False
-
-    for chunk_size, chunk_overlap in chunks:
-        config = Config(
-            congress_hf_path=congress_hf_path,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            chunking_version=chunking_version,
-            embedding_version=embedding_version,
-            embedding_model_name=embedding_model_name,
-        )
-
-        vec_paths = [config.get_vec_path(cn) for cn in config.congress_nums]
-
-        if test_mode:
-            vec_paths = vec_paths[:1]
-
-        chroma_persist_directory = config.get_chroma_persist_directory()
-        # delete the chroma_persist_directory
-        if chroma_persist_directory.exists():
-            shutil.rmtree(chroma_persist_directory)
-
-        client = create_chroma_client(config)
-        collection = load_dataset_to_chroma(client, vec_paths, collection_name="usc", n_lim=None)
-        
-        rich.print(f"[green]ChromaDB created successfully at: {chroma_persist_directory}[/green]")
-        rich.print(f"[blue]Dataset name would be: {config.get_chroma_dataset_name()}[/blue]")
-        rich.print(f"[blue]To upload to HuggingFace, run: python upload_chroma_to_hf.py[/blue]")
 
 

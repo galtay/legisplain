@@ -38,8 +38,8 @@ def write_local(config: Config):
 
     splitter = RecursiveCharacterTextSplitter(
         separators=["\n\n", "\n", " ", ""],
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
+        chunk_size=config.chunk_size,
+        chunk_overlap=config.chunk_overlap,
         length_function=len,
         is_separator_regex=False,
         add_start_index=True,
@@ -85,7 +85,7 @@ def upload_dataset(config: Config):
     repo_id = f"hyperdemocracy/{ds_name}"
     rich.print(f"{repo_id=}")
 
-    upload_folder = config.congress_hf_path / ds_name
+    upload_folder = config.get_congress_hf_path() / ds_name
 
     api = HfApi()
     api.create_repo(
@@ -103,17 +103,3 @@ def upload_dataset(config: Config):
 
 
 
-if __name__ == "__main__":
-
-    congress_hf_path = Path("/Users/galtay/repos/legisplain/congress-hf")
-    chunks = [(8192, 512), (4096, 512), (2048, 256), (1024, 256)]
-    
-    for chunk_size, chunk_overlap in chunks:
-        config = Config(
-            congress_hf_path=congress_hf_path,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            chunking_version=CHUNKING_VERSION,
-        )
-        write_local(config)
-        upload_dataset(config)

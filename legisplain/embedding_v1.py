@@ -103,7 +103,7 @@ def upload_hf(config: Config):
     rich.print(config)
 
     tag = f"usc-{config.get_vecs_tag()}"
-    upload_folder = config.congress_hf_path / tag
+    upload_folder = config.get_congress_hf_path() / tag
     repo_id = f"hyperdemocracy/{tag}"
     rich.print(f"{repo_id=}")
     rich.print(f"{upload_folder=}")
@@ -156,7 +156,7 @@ def get_embedding_model(config: Config):
 
 
 def write_readme(config: Config):
-    out_path = config.congress_hf_path / f"usc-{config.get_vecs_tag()}"
+    out_path = config.get_congress_hf_path() / f"usc-{config.get_vecs_tag()}"
     out_path.mkdir(parents=True, exist_ok=True)
     fpath = Path(out_path) / "README.md"
     readme_str = get_readme_str(config)
@@ -168,29 +168,3 @@ def write_readme(config: Config):
 
 
 
-if __name__ == "__main__":
-
-    congress_hf_path = Path("/Users/galtay/repos/legisplain/congress-hf")
-    chunks = [(8192, 512), (4096, 512), (2048, 256), (1024, 256)]
-    chunking_version = 1
-    embedding_model_name = "sentence-transformers/static-retrieval-mrl-en-v1"
-
-    do_write_local = False
-    do_upload_hf = True
-
-    for chunk_size, chunk_overlap in chunks:
-        config = Config(
-            congress_hf_path=congress_hf_path,
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
-            chunking_version=chunking_version,
-            embedding_version=EMBEDDING_VERSION,
-            embedding_model_name=embedding_model_name,
-        )
-
-        if do_write_local:
-            write_readme(config)
-            write_local(config)
-
-        if do_upload_hf:
-            upload_hf(config)
