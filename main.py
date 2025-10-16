@@ -576,7 +576,6 @@ def chroma_populate(
     chunk_size: Optional[int] = typer.Option(None, help="Chunk size in characters. If not provided, processes all canonical chunk sizes."),
     chunk_overlap: Optional[int] = typer.Option(None, help="Chunk overlap in characters. Required if chunk_size is specified."),
     embedding_model: Optional[str] = typer.Option(None, help="Embedding model name. If not provided, uses default from config."),
-    upload: bool = typer.Option(True, help="Upload ChromaDB datasets to HuggingFace"),
     reset: bool = typer.Option(True, help="Reset/delete existing ChromaDB before creating new one"),
 ):
     """Create ChromaDB from embedding datasets."""
@@ -601,7 +600,7 @@ def chroma_populate(
     # Determine embedding model
     model_name = embedding_model if embedding_model is not None else config.embedding_model_name
     logger.info(f"Using embedding model: {model_name}")
-    
+        
     # Process each chunk configuration
     total_configs = len(chunk_params)
     for i, (cs, co) in enumerate(chunk_params, 1):
@@ -620,50 +619,9 @@ def chroma_populate(
             embedding_version=config.embedding_version,
         )
         
-        try:
-            # Get vector paths for this configuration
-            vec_paths = [chroma_config.get_vec_path(cn) for cn in chroma_config.congress_nums]
-            
-            # Check if vector files exist
-            missing_files = [p for p in vec_paths if not p.exists()]
-            if missing_files:
-                logger.error(f"Missing embedding files for configuration {cs}/{co}:")
-                for p in missing_files:
-                    logger.error(f"  - {p}")
-                logger.error("Run 'embed-v1' command first to generate embeddings")
-                continue
-            
-            chroma_persist_directory = chroma_config.get_chroma_persist_directory()
-            
-            # Reset ChromaDB if requested
-            if reset and chroma_persist_directory.exists():
-                logger.info("Resetting existing ChromaDB...")
-                shutil.rmtree(chroma_persist_directory)
-                logger.info("✓ Existing ChromaDB deleted")
-            
-            # Create ChromaDB
-            logger.info("Creating ChromaDB...")
-            client = chroma.create_chroma_client(chroma_config)
-            collection = chroma.load_dataset_to_chroma(client, vec_paths, collection_name="usc", n_lim=None)
-            logger.info("✓ ChromaDB created successfully")
-            
-            # Upload to HuggingFace if requested
-            if upload:
-                logger.info("Uploading ChromaDB to HuggingFace...")
-                success = chroma.upload_chroma_to_hf(chroma_persist_directory)
-                if success:
-                    logger.info("✓ Upload completed successfully")
-                    dataset_name = chroma_config.get_chroma_dataset_name()
-                    logger.info(f"Dataset URL: https://huggingface.co/datasets/hyperdemocracy/{dataset_name}")
-                else:
-                    logger.error("✗ Upload failed")
-            else:
-                logger.info("Skipping HuggingFace upload (--no-upload specified)")
-                logger.info(f"ChromaDB created at: {chroma_persist_directory}")
-                
-        except Exception as e:
-            logger.error(f"✗ Failed to process ChromaDB configuration {cs}/{co}: {e}")
-            # Continue with next configuration rather than stopping
+        vec_paths = [chroma_config.get_vec_path(cn) for cn in chroma_config.congress_nums]
+        chroma.populate(chroma_config, vec_paths)
+
     
     logger.info("ChromaDB process completed!")
 

@@ -34,6 +34,7 @@ dependencies = [
     "united-states-congress",
     "unstructured>=0.18.14",
     "chromadb>=1.1.0",
+    "python-dotenv>=1.1.1",
 ]
 
 [build-system]

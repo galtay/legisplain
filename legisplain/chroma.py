@@ -2,29 +2,60 @@
 Create persistant ChromaDB files
 """
 
-import shutil
+import os
 from pathlib import Path
 import chromadb
 from chromadb.config import Settings
+from chromadb.utils import embedding_functions
 import pandas as pd
 import rich
-from huggingface_hub import HfApi, create_repo
+from chromadb.config import Settings, APIVersion
+from dotenv import load_dotenv
+import time
+import random
 
 
 from legisplain.config import Config
 
 
+def retry_with_backoff(func, max_retries=3, base_delay=1.0, max_delay=60.0):
+    """
+    Retry a function with exponential backoff
+    
+    Args:
+        func: Function to retry
+        max_retries: Maximum number of retry attempts
+        base_delay: Base delay in seconds for exponential backoff
+        max_delay: Maximum delay in seconds
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            return func()
+        except Exception as e:
+            if attempt == max_retries:
+                rich.print(f"[red]Failed after {max_retries} retries: {e}[/red]")
+                raise e
+            
+            # Calculate delay with exponential backoff and jitter
+            delay = min(base_delay * (2 ** attempt) + random.uniform(0, 1), max_delay)
+            rich.print(f"[yellow]Attempt {attempt + 1} failed: {e}. Retrying in {delay:.2f}s...[/yellow]")
+            time.sleep(delay)
+
+
 def create_chroma_client(config: Config):
-    """Create and return a ChromaDB client with persistence"""
-    persist_directory = config.get_chroma_persist_directory()
-    persist_directory.mkdir(parents=True, exist_ok=True)    
-    client = chromadb.PersistentClient(
-        path=persist_directory,
-        settings=Settings(
-            anonymized_telemetry=False,
-            allow_reset=False
-        )
+    """Create and return a ChromaDB client"""
+    load_dotenv()
+    host = os.getenv("CHROMA_PROXY_BASE")
+    token = os.getenv("CHROMA_AUTH_TOKEN")
+    if not host or not token:
+        raise ValueError("Set CHROMA_PROXY_BASE and CHROMA_AUTH_TOKEN")
+
+    headers = {"Authorization": f"Bearer {token}"}
+    settings = Settings(
+        chroma_server_api_default_path=APIVersion.V2, anonymized_telemetry=False
     )
+    client = chromadb.HttpClient(host=host, headers=headers, settings=settings)
+
     return client
 
 
@@ -38,24 +69,67 @@ def check_collection_exists(client, collection_name="usc"):
         return False, 0
 
 
-def load_dataset_to_chroma(client, vec_paths: list[Path], collection_name="usc", n_lim: int | None = None):
-    """Load the HuggingFace dataset into ChromaDB"""
+def populate(config: Config, vec_paths: list[Path], collection_name="usc", n_lim: int | None = None):
+    """Load the HuggingFace dataset into ChromaDB with proper embedding function"""
     
-    # Create or get collection
+    # Create embedding function that matches the model used
+    embedding_function = embedding_functions.SentenceTransformerEmbeddingFunction(
+        model_name=config.embedding_model_name
+    )
+    rich.print(embedding_function)
+    client = create_chroma_client(config)
+
+    # Get existing collection or create new one
     try:
         collection = client.get_collection(collection_name)
-        client.delete_collection(collection_name)
-    except Exception:
-        pass  # Collection doesn't exist yet
+    except chromadb.errors.NotFoundError:
+        # Collection doesn't exist, create it
+        rich.print(f"Collection '{collection_name}' does not exist, creating new one")
+        collection = client.create_collection(
+            name=collection_name,
+            embedding_function=embedding_function,
+            metadata={
+                "description": "US Congressional legislation chunks with embeddings",
+                "embedding_model": config.embedding_model_name,
+                "embedding_version": config.embedding_version,
+                "chunk_size": config.chunk_size,
+                "chunk_overlap": config.chunk_overlap,
+                "chunking_version": config.chunking_version,
+            }
+        )
+    
+    # Check document count and delete if needed
+    doc_count = collection.count()
+    rich.print(f"Collection '{collection_name}' has {doc_count} documents")
+    
+    if doc_count > 0:
+        rich.print("Collection has documents, deleting and recreating...")
+        def delete_collection():
+            return client.delete_collection(collection_name)
         
-    collection = client.create_collection(
-        name=collection_name,
-        metadata={"description": "US Congressional legislation chunks with embeddings"}
-    )
+        retry_with_backoff(delete_collection, max_retries=2, base_delay=5.0, max_delay=120.0)
+        rich.print(f"Successfully deleted collection '{collection_name}'")
+        
+        # Recreate the collection
+        collection = client.create_collection(
+            name=collection_name,
+            embedding_function=embedding_function,
+            metadata={
+                "description": "US Congressional legislation chunks with embeddings",
+                "embedding_model": config.embedding_model_name,
+                "embedding_version": config.embedding_version,
+                "chunk_size": config.chunk_size,
+                "chunk_overlap": config.chunk_overlap,
+                "chunking_version": config.chunking_version,
+            }
+        )
+        rich.print("Recreated empty collection")
+    else:
+        rich.print("Collection is empty, ready to populate")
     
     # Process each congress split
     total_docs = 0
-    batch_size = 1000
+    batch_size = 50
     
     
     for vec_path in vec_paths:
@@ -91,13 +165,16 @@ def load_dataset_to_chroma(client, vec_paths: list[Path], collection_name="usc",
                 documents.append(item['text'])
                 metadatas.append(metadata)
             
-            # Add batch to collection
-            collection.add(
-                ids=ids,
-                embeddings=embeddings,
-                documents=documents,
-                metadatas=metadatas
-            )
+            # Add batch to collection with retry logic
+            def add_batch():
+                return collection.add(
+                    ids=ids,
+                    embeddings=embeddings,
+                    documents=documents,
+                    metadatas=metadatas
+                )
+            
+            retry_with_backoff(add_batch)
             
             total_docs += len(ids)
             
@@ -128,124 +205,7 @@ def get_collection_info(client, collection_name="usc_legislation"):
         }
 
 
-def upload_chroma_to_hf(local_chroma_dir: Path, hf_org: str = "hyperdemocracy"):
-    """
-    Upload ChromaDB directory to HuggingFace dataset following naming convention.
-    
-    Args:
-        local_chroma_dir: Local path to ChromaDB directory (e.g., .../congress-hf/usc-chroma-.../chromadb)
-        hf_org: HuggingFace organization name (default: "hyperdemocracy")
-    
-    Returns:
-        bool: True if successful, False otherwise
-    """
-    try:
-        # Get the parent directory name for the dataset name
-        chroma_parent_dir = local_chroma_dir.parent
-        dataset_name = chroma_parent_dir.name  # e.g., "usc-chroma-vecs-v1-chunks-v1-s8192-o512-sentence-transformers-static-retrieval-mrl-en-v1"
-        repo_id = f"{hf_org}/{dataset_name}"
-        
-        if not local_chroma_dir.exists():
-            rich.print(f"[red]Error: Local ChromaDB directory does not exist: {local_chroma_dir}[/red]")
-            return False
-        
-        # Initialize HF API
-        api = HfApi()
-        
-        rich.print(f"[blue]Uploading ChromaDB to HuggingFace dataset: {repo_id}[/blue]")
-        
-        # Create the dataset repository
-        try:
-            create_repo(
-                repo_id=repo_id,
-                repo_type="dataset",
-                exist_ok=True,
-                private=False
-            )
-            rich.print(f"[green]Created/verified HF dataset repository: {repo_id}[/green]")
-        except Exception as e:
-            rich.print(f"[red]Error creating HF repository: {e}[/red]")
-            return False
-        
-        # Create a simple README for the dataset
-        readme_content = f"""---
-license: cc0-1.0
-tags:
-- chromadb
-- legal
-- congress
-- legislation
-- embeddings
-size_categories:
-- 100K<n<1M
----
 
-# {dataset_name}
-
-This dataset contains a pre-built ChromaDB database with US Congressional legislation embeddings.
-
-## Dataset Structure
-
-This dataset contains the ChromaDB files for legislation chunks with embeddings. The database can be loaded directly using ChromaDB's PersistentClient.
-
-## Usage
-
-```python
-import chromadb
-from huggingface_hub import snapshot_download
-
-# Download the dataset
-local_dir = snapshot_download(repo_id="{repo_id}", repo_type="dataset")
-
-# Load the ChromaDB
-client = chromadb.PersistentClient(path=local_dir + "/chromadb")
-collection = client.get_collection("usc")
-
-# Query the database
-results = collection.query(
-    query_texts=["your query here"],
-    n_results=10
-)
-```
-
-## Configuration
-
-- Chunk size and overlap settings are encoded in the dataset name
-- Embedding model information is included in the dataset name
-- This follows the hyperdemocracy dataset naming convention
-"""
-        
-        try:
-            # Upload README
-            api.upload_file(
-                path_or_fileobj=readme_content.encode(),
-                path_in_repo="README.md",
-                repo_id=repo_id,
-                repo_type="dataset"
-            )
-            rich.print("[green]Uploaded README.md[/green]")
-        except Exception as e:
-            rich.print(f"[yellow]Warning: Could not upload README: {e}[/yellow]")
-        
-        # Upload the entire ChromaDB directory
-        try:
-            api.upload_folder(
-                folder_path=chroma_parent_dir,
-                repo_id=repo_id,
-                repo_type="dataset",
-                commit_message=f"Upload ChromaDB for {dataset_name}"
-            )
-            rich.print(f"[green]Successfully uploaded ChromaDB to HuggingFace![/green]")
-            rich.print(f"[green]Dataset URL: https://huggingface.co/datasets/{repo_id}[/green]")
-            return True
-            
-        except Exception as e:
-            rich.print(f"[red]Error uploading ChromaDB directory: {e}[/red]")
-            return False
-            
-    except Exception as e:
-        rich.print(f"[red]Unexpected error uploading to HuggingFace: {e}[/red]")
-        return False
 
 
 
